@@ -1,10 +1,4 @@
-# Krrish Singla
-
-**SRN:** `PES1UG24AM141`
-
----
-
-## SE Lab Team 08
+# SE Lab Team 08
 
 Software Engineering Laboratory — Team 08
 
