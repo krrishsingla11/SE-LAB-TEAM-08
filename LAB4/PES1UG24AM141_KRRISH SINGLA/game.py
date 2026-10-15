@@ -24,12 +24,25 @@ class WordleGame:
         self.target = random.choice(self.words)
         self.history = []
 
+    def show_history(self):
+        for n, (guess, feedback) in enumerate(self.history, 1):
+            cells = "  ".join(f"{c.upper()}:{f:<6}" for c, f in zip(guess, feedback))
+            print(f"{n}. {cells}".rstrip())
+
+    def show_summary(self, result):
+        print("\n--- Summary ---")
+        print(f"Target:  {self.target}")
+        print(f"Result:  {result}")
+        print(f"Guesses: {len(self.history)}/{MAX_GUESSES}")
+
     def run(self):
         print(f"Wordle — {self.length} letters, {MAX_GUESSES} guesses. Type q to quit.")
+        result = "Loss"
         while len(self.history) < MAX_GUESSES:
             guess = input("> ").strip().lower()
             if guess == "q":
-                return
+                result = "Quit"
+                break
             if len(guess) != self.length or not guess.isalpha():
                 print(f"Enter a {self.length}-letter word.")
                 continue
@@ -38,10 +51,13 @@ class WordleGame:
                 continue
             feedback = evaluate(self.target, guess)
             self.history.append((guess, feedback))
-            print(" ".join(feedback))
+            self.show_history()
             if guess == self.target:
                 tries = len(self.history)
                 print(f"You win! Solved in {tries} guess{'es' if tries != 1 else ''}.")
-                return
+                result = "Win"
+                break
             print(f"{MAX_GUESSES - len(self.history)} guesses left.")
-        print(f"You lose. The word was: {self.target}")
+        else:
+            print("You lose.")
+        self.show_summary(result)
