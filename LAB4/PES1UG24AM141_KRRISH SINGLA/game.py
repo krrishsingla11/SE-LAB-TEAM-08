@@ -5,10 +5,23 @@ from feedback import evaluate
 MAX_GUESSES = 6
 
 
+def choose_length():
+    lengths = sorted({len(w) for w in WORDS})
+    options = ", ".join(str(n) for n in lengths)
+    while True:
+        choice = input(f"Choose word length ({options}): ").strip()
+        if choice.isdigit() and int(choice) in lengths:
+            return int(choice)
+        print(f"Pick one of: {options}")
+
+
 class WordleGame:
     def __init__(self, length=5):
         self.length = length
-        self.target = random.choice([w for w in WORDS if len(w) == length])
+        self.words = [w for w in WORDS if len(w) == length]
+        if not self.words:
+            raise ValueError(f"No {length}-letter words available.")
+        self.target = random.choice(self.words)
         self.history = []
 
     def run(self):
@@ -20,7 +33,7 @@ class WordleGame:
             if len(guess) != self.length or not guess.isalpha():
                 print(f"Enter a {self.length}-letter word.")
                 continue
-            if guess not in WORDS:
+            if guess not in self.words:
                 print("Not in word list.")
                 continue
             feedback = evaluate(self.target, guess)
