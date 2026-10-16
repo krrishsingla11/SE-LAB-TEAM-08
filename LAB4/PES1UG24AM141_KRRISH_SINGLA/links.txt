@@ -1,0 +1,10 @@
+Lab 4: Vibe Coding
+Name: Krrish Singla
+SRN: PES1UG24AM141
+Scenario: 17_wordle
+
+GitHub repo (fork):
+https://github.com/krrishsingla11/17_wordle
+
+LLM chat history:
+https://claude.ai/share/75386b49-ed69-4b18-a645-ad74a06ff8a2
