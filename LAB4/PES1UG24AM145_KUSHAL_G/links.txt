@@ -1,0 +1,10 @@
+Lab 4: Vibe Coding
+Name: Kushal G
+SRN: PES1UG24AM145
+Scenario: 21 — Checkers
+
+GitHub repository (personal fork):
+https://github.com/kushal1310xviii/21_checkers
+
+LLM chat history (Claude share link):
+https://claude.ai/share/471d49a6-06c6-443d-bbad-9fc3ccfaad7a
