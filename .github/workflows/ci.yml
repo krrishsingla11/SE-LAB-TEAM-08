@@ -1,0 +1,23 @@
+name: Mini Project CI
+on:
+  push:
+    paths: ['MINI-PROJECT/**', '.github/workflows/ci.yml']
+  pull_request:
+    paths: ['MINI-PROJECT/**', '.github/workflows/ci.yml']
+defaults:
+  run:
+    working-directory: MINI-PROJECT
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: MINI-PROJECT/requirements.txt
+      - run: pip install -r requirements.txt
+      - run: flake8 app tests --max-line-length 100
+      - run: pytest -q
+      - run: docker build -t marketplace .
