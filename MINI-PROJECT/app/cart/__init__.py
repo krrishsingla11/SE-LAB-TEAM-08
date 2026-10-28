@@ -1,3 +1,3 @@
-from flask import Blueprint
+from app.cart.routes import bp as cart_bp
 
-cart_bp = Blueprint("cart", __name__, url_prefix="/api/cart")
+__all__ = ["cart_bp"]
