@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Log in – Handcrafted Goods Marketplace</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-stone-50 text-slate-900">
+  <header class="border-b border-stone-200 bg-white">
+    <div class="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
+      <a href="index.html" class="font-serif text-xl font-bold text-indigo-900">Handcrafted Goods</a>
+      <a href="register.html" class="text-sm font-medium text-indigo-800 underline">Create account</a>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-md px-4 py-10">
+    <h1 class="font-serif text-3xl font-bold text-indigo-900">Log in</h1>
+    <p class="mt-2 text-slate-700">Welcome back. Log in to see your cart and orders.</p>
+
+    <div id="error-box" role="alert" class="mt-6 hidden rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800"></div>
+
+    <form id="login-form" class="mt-6 space-y-5" novalidate>
+      <div>
+        <label for="email" class="block text-sm font-medium">Email</label>
+        <input id="email" type="email" autocomplete="email" required
+          class="mt-1 w-full rounded border border-slate-400 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-700">
+        <p id="email-error" class="mt-1 hidden text-sm text-red-700"></p>
+      </div>
+      <div>
+        <label for="password" class="block text-sm font-medium">Password</label>
+        <input id="password" type="password" autocomplete="current-password" required
+          class="mt-1 w-full rounded border border-slate-400 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-700">
+        <p id="password-error" class="mt-1 hidden text-sm text-red-700"></p>
+      </div>
+      <button id="submit-btn" type="submit"
+        class="w-full rounded bg-indigo-900 px-4 py-2 font-medium text-white hover:bg-indigo-800 focus:outline-none focus:ring-2 focus:ring-indigo-700 focus:ring-offset-2 disabled:opacity-60">
+        Log in
+      </button>
+    </form>
+
+    <p class="mt-6 text-sm text-slate-700">New here? <a href="register.html" class="font-medium text-indigo-800 underline">Create an account</a></p>
+    <p class="mt-4 text-xs text-slate-600">Mock mode: use test@x.com / Test@1234</p>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script>
+    const form = document.getElementById("login-form");
+    const errorBox = document.getElementById("error-box");
+    const btn = document.getElementById("submit-btn");
+
+    function setFieldError(id, msg) {
+      const el = document.getElementById(id + "-error");
+      el.textContent = msg;
+      el.classList.toggle("hidden", !msg);
+      document.getElementById(id).setAttribute("aria-invalid", msg ? "true" : "false");
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errorBox.classList.add("hidden");
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+
+      let ok = true;
+      if (!email) { setFieldError("email", "Enter your email."); ok = false; }
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setFieldError("email", "Enter a valid email, like name@example.com."); ok = false; }
+      else setFieldError("email", "");
+
+      if (!password) { setFieldError("password", "Enter your password."); ok = false; }
+      else setFieldError("password", "");
+      if (!ok) return;
+
+      btn.disabled = true;
+      btn.textContent = "Logging in...";
+      try {
+        const data = await api.login(email, password);
+        localStorage.setItem("token", data.token);
+        window.location.href = "index.html";
+      } catch (err) {
+        errorBox.textContent = err.message;
+        errorBox.classList.remove("hidden");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Log in";
+      }
+    });
+  </script>
+</body>
+</html>
