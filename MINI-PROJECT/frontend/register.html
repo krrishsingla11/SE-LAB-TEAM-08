@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Create account – Handcrafted Goods Marketplace</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-stone-50 text-slate-900">
+  <header class="border-b border-stone-200 bg-white">
+    <div class="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
+      <a href="index.html" class="font-serif text-xl font-bold text-indigo-900">Handcrafted Goods</a>
+      <a href="login.html" class="text-sm font-medium text-indigo-800 underline">Log in</a>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-md px-4 py-10">
+    <h1 class="font-serif text-3xl font-bold text-indigo-900">Create your account</h1>
+    <p class="mt-2 text-slate-700">Buy handmade pieces, or sell your own craft.</p>
+
+    <div id="error-box" role="alert" class="mt-6 hidden rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800"></div>
+    <div id="success-box" role="status" class="mt-6 hidden rounded border border-green-300 bg-green-50 p-3 text-sm text-green-900"></div>
+
+    <form id="register-form" class="mt-6 space-y-5" novalidate>
+      <div>
+        <label for="full_name" class="block text-sm font-medium">Full name</label>
+        <input id="full_name" type="text" autocomplete="name" required
+          class="mt-1 w-full rounded border border-slate-400 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-700">
+        <p id="full_name-error" class="mt-1 hidden text-sm text-red-700"></p>
+      </div>
+      <div>
+        <label for="email" class="block text-sm font-medium">Email</label>
+        <input id="email" type="email" autocomplete="email" required
+          class="mt-1 w-full rounded border border-slate-400 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-700">
+        <p id="email-error" class="mt-1 hidden text-sm text-red-700"></p>
+      </div>
+      <div>
+        <label for="password" class="block text-sm font-medium">Password</label>
+        <input id="password" type="password" autocomplete="new-password" required aria-describedby="pw-hint"
+          class="mt-1 w-full rounded border border-slate-400 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-700">
+        <p id="pw-hint" class="mt-1 text-xs text-slate-600">At least 8 characters with an uppercase letter, a lowercase letter and a number.</p>
+        <p id="password-error" class="mt-1 hidden text-sm text-red-700"></p>
+      </div>
+      <div>
+        <label for="role" class="block text-sm font-medium">I want to</label>
+        <select id="role" required
+          class="mt-1 w-full rounded border border-slate-400 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-700">
+          <option value="">Choose one</option>
+          <option value="Buyer">Buy handmade goods</option>
+          <option value="Artisan">Sell my crafts</option>
+        </select>
+        <p id="role-error" class="mt-1 hidden text-sm text-red-700"></p>
+      </div>
+      <button id="submit-btn" type="submit"
+        class="w-full rounded bg-indigo-900 px-4 py-2 font-medium text-white hover:bg-indigo-800 focus:outline-none focus:ring-2 focus:ring-indigo-700 focus:ring-offset-2 disabled:opacity-60">
+        Create account
+      </button>
+    </form>
+
+    <p class="mt-6 text-sm text-slate-700">Already have an account? <a href="login.html" class="font-medium text-indigo-800 underline">Log in</a></p>
+    <p class="mt-4 text-xs text-slate-600">Mock mode: taken@x.com simulates a duplicate email.</p>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script>
+    const form = document.getElementById("register-form");
+    const errorBox = document.getElementById("error-box");
+    const successBox = document.getElementById("success-box");
+    const btn = document.getElementById("submit-btn");
+
+    function setFieldError(id, msg) {
+      const el = document.getElementById(id + "-error");
+      el.textContent = msg;
+      el.classList.toggle("hidden", !msg);
+      document.getElementById(id).setAttribute("aria-invalid", msg ? "true" : "false");
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errorBox.classList.add("hidden");
+      successBox.classList.add("hidden");
+
+      const full_name = document.getElementById("full_name").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+      const role = document.getElementById("role").value;
+
+      let ok = true;
+      if (full_name.length < 2) { setFieldError("full_name", "Enter your full name."); ok = false; }
+      else setFieldError("full_name", "");
+
+      if (!email) { setFieldError("email", "Enter your email."); ok = false; }
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setFieldError("email", "Enter a valid email, like name@example.com."); ok = false; }
+      else setFieldError("email", "");
+
+      if (password.length < 8 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
+        setFieldError("password", "Password needs 8+ characters with an uppercase letter, a lowercase letter and a number.");
+        ok = false;
+      } else setFieldError("password", "");
+
+      if (!role) { setFieldError("role", "Choose whether you want to buy or sell."); ok = false; }
+      else setFieldError("role", "");
+      if (!ok) return;
+
+      btn.disabled = true;
+      btn.textContent = "Creating account...";
+      try {
+        await api.register({ email, password, full_name, role });
+        successBox.textContent = "Account created. Redirecting to log in...";
+        successBox.classList.remove("hidden");
+        setTimeout(() => (window.location.href = "login.html"), 1200);
+      } catch (err) {
+        errorBox.textContent = err.message;
+        errorBox.classList.remove("hidden");
+        btn.disabled = false;
+        btn.textContent = "Create account";
+      }
+    });
+  </script>
+</body>
+</html>
