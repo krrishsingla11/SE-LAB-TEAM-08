@@ -19,5 +19,5 @@ jobs:
           cache-dependency-path: MINI-PROJECT/requirements.txt
       - run: pip install -r requirements.txt
       - run: flake8 app tests --max-line-length 100
-      - run: pytest -q
+      - run: python -m pytest -q
       - run: docker build -t marketplace .
