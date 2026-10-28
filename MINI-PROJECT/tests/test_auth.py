@@ -1,7 +1,9 @@
 """Authentication & RBAC tests (SE8-12 / SE8-16) - STP section 13.1"""
 import pytest
 
-SKIP = pytest.mark.skip(reason="Waiting for app skeleton / not implemented yet")
+SKIP = pytest.mark.skip(
+    reason="Waiting for app skeleton / not implemented yet")
+
 
 @SKIP
 def test_tc_auth_01_valid_buyer_registration():
@@ -11,6 +13,7 @@ def test_tc_auth_01_valid_buyer_registration():
     """
     pass
 
+
 @SKIP
 def test_tc_auth_02_duplicate_email_registration():
     """TC-AUTH-02 (High) - OMH-F-001
@@ -18,6 +21,7 @@ def test_tc_auth_02_duplicate_email_registration():
     Expected: HTTP 409; error 'Email already registered'; no duplicate row.
     """
     pass
+
 
 @SKIP
 def test_tc_auth_03_login_returns_jwt():
@@ -27,6 +31,7 @@ def test_tc_auth_03_login_returns_jwt():
     """
     pass
 
+
 @SKIP
 def test_tc_auth_04_login_wrong_password():
     """TC-AUTH-04 (High) - OMH-F-002
@@ -34,6 +39,7 @@ def test_tc_auth_04_login_wrong_password():
     Expected: HTTP 401; error 'Invalid credentials'; no token issued.
     """
     pass
+
 
 @SKIP
 def test_tc_auth_05_rbac_denies_buyer_on_artisan_route():
@@ -43,13 +49,16 @@ def test_tc_auth_05_rbac_denies_buyer_on_artisan_route():
     """
     pass
 
+
 @SKIP
 def test_tc_auth_06_password_reset_flow():
     """TC-AUTH-06 (Medium) - OMH-F-004
-    Steps:    POST /api/auth/reset-password; take token from Mailtrap; POST /api/auth/reset-password/confirm.
+    Steps:    POST /api/auth/reset-password; take token from Mailtrap;
+          POST /api/auth/reset-password/confirm.
     Expected: HTTP 200; password updated; login with new password works. (SE8-17 stretch)
     """
     pass
+
 
 @SKIP
 def test_tc_auth_07_password_reset_expired_token():

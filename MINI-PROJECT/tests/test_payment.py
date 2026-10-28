@@ -1,7 +1,9 @@
 """Payment tests (mock payment stub) - STP section 13.4"""
 import pytest
 
-SKIP = pytest.mark.skip(reason="Waiting for app skeleton / not implemented yet")
+SKIP = pytest.mark.skip(
+    reason="Waiting for app skeleton / not implemented yet")
+
 
 @SKIP
 def test_tc_pay_01_payment_success_mock_stub():
@@ -11,6 +13,7 @@ def test_tc_pay_01_payment_success_mock_stub():
     """
     pass
 
+
 @SKIP
 def test_tc_pay_02_payment_declined():
     """TC-PAY-02 (High) - OMH-F-010
@@ -18,6 +21,7 @@ def test_tc_pay_02_payment_declined():
     Expected: HTTP 402; error 'Card declined'; stock lock rolled back; no order created.
     """
     pass
+
 
 @SKIP
 def test_tc_pay_03_idempotent_payment_retry():

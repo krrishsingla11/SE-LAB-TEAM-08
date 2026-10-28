@@ -1,7 +1,9 @@
 """Cart & pre-checkout tests - STP section 13.3"""
 import pytest
 
-SKIP = pytest.mark.skip(reason="Waiting for app skeleton / not implemented yet")
+SKIP = pytest.mark.skip(
+    reason="Waiting for app skeleton / not implemented yet")
+
 
 @SKIP
 def test_tc_cart_01_add_item_and_update_quantity():
@@ -11,6 +13,7 @@ def test_tc_cart_01_add_item_and_update_quantity():
     """
     pass
 
+
 @SKIP
 def test_tc_cart_02_add_quantity_exceeding_stock():
     """TC-CART-02 (High) - OMH-F-008
@@ -19,6 +22,7 @@ def test_tc_cart_02_add_quantity_exceeding_stock():
     """
     pass
 
+
 @SKIP
 def test_tc_cart_03_remove_last_item():
     """TC-CART-03 (Medium) - OMH-F-008
@@ -26,6 +30,7 @@ def test_tc_cart_03_remove_last_item():
     Expected: HTTP 200; items array empty; subtotal 0.00.
     """
     pass
+
 
 @SKIP
 def test_tc_chk_01_checkout_with_depleted_stock():
