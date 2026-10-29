@@ -1,3 +1,3 @@
-from flask import Blueprint
+from app.payment.routes import bp as payment_bp
 
-payment_bp = Blueprint("payment", __name__, url_prefix="/api/payment")
+__all__ = ["payment_bp"]
