@@ -1,3 +1,3 @@
-from flask import Blueprint
+from app.search.routes import bp as catalog_bp
 
-catalog_bp = Blueprint("catalog", __name__, url_prefix="/api")
+__all__ = ["catalog_bp"]
