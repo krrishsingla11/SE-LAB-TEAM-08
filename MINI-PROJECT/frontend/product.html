@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Product – Handcrafted Goods Marketplace</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-stone-50 text-slate-900">
+  <header class="border-b border-stone-200 bg-white">
+    <div class="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
+      <a href="index.html" class="font-serif text-xl font-bold text-indigo-900">Handcrafted Goods</a>
+      <nav class="flex gap-4 text-sm font-medium">
+        <a href="catalog.html" class="text-indigo-800 underline">Browse</a>
+        <a href="login.html" class="text-indigo-800 underline">Log in</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-5xl px-4 py-8">
+    <a href="catalog.html" class="text-sm font-medium text-indigo-800 underline">Back to all crafts</a>
+    <p id="status" class="mt-6 text-slate-700" role="status">Loading...</p>
+    <div id="product" class="mt-6 hidden gap-8 md:grid md:grid-cols-2"></div>
+    <div id="message" role="alert" class="mt-6 hidden rounded border p-3 text-sm"></div>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script>
+    const id = new URLSearchParams(location.search).get("id");
+    const statusEl = document.getElementById("status");
+    const box = document.getElementById("product");
+    const msg = document.getElementById("message");
+
+    function esc(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    }
+
+    function showMessage(text, ok) {
+      msg.textContent = text;
+      msg.className = "mt-6 rounded border p-3 text-sm " +
+        (ok ? "border-green-300 bg-green-50 text-green-900" : "border-red-300 bg-red-50 text-red-800");
+    }
+
+    function render(p) {
+      const out = !p.in_stock;
+      const low = !out && p.stock_quantity <= 5;
+      const urls = (p.images || []).map((i) => i.url);
+      const imgs = urls.length
+        ? `<img id="main-img" src="${esc(urls[0])}" alt="${esc(p.title)}" class="w-full rounded border border-stone-300 object-cover">` +
+          `<div class="mt-3 flex gap-2">${urls.map((u, i) =>
+            `<button type="button" data-src="${esc(u)}" class="thumb rounded border border-stone-300 focus:outline-none focus:ring-2 focus:ring-indigo-700" aria-label="Show image ${i + 1}"><img src="${esc(u)}" alt="" class="h-16 w-16 object-cover"></button>`).join("")}</div>`
+        : `<div class="flex h-72 w-full items-center justify-center rounded bg-indigo-100 font-serif text-7xl text-indigo-900" role="img" aria-label="No photo yet for ${esc(p.title)}">${esc(p.title[0])}</div>`;
+
+      const stockText = out ? "Out of stock" : low ? `Only ${p.stock_quantity} left` : "In stock";
+      const stockCls = out ? "bg-red-100 text-red-800" : low ? "bg-amber-100 text-amber-900" : "bg-green-100 text-green-900";
+
+      box.innerHTML = `
+        <div>${imgs}</div>
+        <div>
+          <h1 class="font-serif text-3xl font-bold text-indigo-900">${esc(p.title)}</h1>
+          <p class="mt-1 text-slate-700">by ${esc(p.artisan_name || "Artisan #" + p.artisan_id)}</p>
+          <p class="mt-4 text-2xl font-medium">₹${Number(p.price).toLocaleString("en-IN")}</p>
+          <span class="mt-3 inline-block rounded px-2 py-0.5 text-sm font-medium ${stockCls}">${stockText}</span>
+          <p class="mt-4 max-w-prose text-slate-800">${esc(p.description)}</p>
+          <div class="mt-6 flex items-end gap-3">
+            <div>
+              <label for="qty" class="block text-sm font-medium">Quantity</label>
+              <input id="qty" type="number" min="1" max="${Math.max(p.stock_quantity, 1)}" value="1" ${out ? "disabled" : ""}
+                class="mt-1 w-24 rounded border border-slate-400 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-700">
+            </div>
+            <button id="add" ${out ? "disabled" : ""}
+              class="rounded bg-indigo-900 px-5 py-2 font-medium text-white hover:bg-indigo-800 focus:outline-none focus:ring-2 focus:ring-indigo-700 focus:ring-offset-2 disabled:opacity-50">
+              ${out ? "Unavailable" : "Add to cart"}
+            </button>
+          </div>
+        </div>`;
+      box.classList.remove("hidden");
+      statusEl.classList.add("hidden");
+
+      box.querySelectorAll(".thumb").forEach((b) =>
+        b.addEventListener("click", () => (document.getElementById("main-img").src = b.dataset.src)));
+
+      const add = document.getElementById("add");
+      if (!out) add.addEventListener("click", async () => {
+        if (!getToken()) { window.location.href = "login.html"; return; }
+        const qty = parseInt(document.getElementById("qty").value, 10);
+        if (!qty || qty < 1) { showMessage("Enter a quantity of 1 or more.", false); return; }
+        if (qty > p.stock_quantity) { showMessage(`Only ${p.stock_quantity} available. Lower the quantity.`, false); return; }
+        add.disabled = true;
+        try {
+          await api.cartAdd(p.product_id, qty);
+          showMessage("Added to cart.", true);
+        } catch (err) {
+          showMessage(err.message, false);
+        } finally {
+          add.disabled = false;
+        }
+      });
+    }
+
+    (async () => {
+      if (!id) { statusEl.textContent = "No product selected. Go back and pick one."; return; }
+      try {
+        render(await api.product(id));
+      } catch (err) {
+        statusEl.textContent = err.message;
+      }
+    })();
+  </script>
+</body>
+</html>
