@@ -3,9 +3,11 @@
 Implements user registration with bcrypt hashing (work factor 12),
 payload validation, and duplicate email enforcement.
 """
+from datetime import timedelta
 import re
 
 import bcrypt
+from flask_jwt_extended import create_access_token
 
 from app.extensions import db
 from app.models import Artisan, User
@@ -139,4 +141,71 @@ def register_user(data: dict) -> dict:
         "email": user.email,
         "full_name": user.full_name,
         "role": user.role,
+    }
+
+
+def validate_login_payload(data: dict) -> tuple[str, str]:
+    """Validate and sanitize login payload fields.
+
+    Returns:
+        tuple: (email, password)
+    Raises:
+        AuthError: On missing or invalid input.
+    """
+    if not isinstance(data, dict):
+        raise AuthError("INVALID_INPUT", "Request body must be a JSON object", 400)
+
+    # 1. Email validation
+    email = data.get("email")
+    if email is None or not isinstance(email, str) or not email.strip():
+        raise AuthError("INVALID_INPUT", "Email is required", 400)
+    email = email.strip().lower()
+
+    # 2. Password validation
+    password = data.get("password")
+    if password is None or not isinstance(password, str) or not password:
+        raise AuthError("INVALID_INPUT", "Password is required", 400)
+
+    return email, password
+
+
+def login_user(data: dict) -> dict:
+    """Authenticate existing user credentials and generate a 24-hour JWT.
+
+    Returns:
+        dict: Authentication payload including JWT token and non-sensitive user summary.
+    Raises:
+        AuthError: On validation failure (400) or invalid credentials (401).
+    """
+    email, password = validate_login_payload(data)
+
+    user = db.session.scalar(db.select(User).where(User.email == email))
+    if user is None or not verify_password(password, user.password_hash):
+        raise AuthError("UNAUTHORIZED", "Invalid credentials", 401)
+
+    access_token = create_access_token(
+        identity=str(user.user_id),
+        expires_delta=timedelta(hours=24),
+        additional_claims={
+            "user_id": user.user_id,
+            "role": user.role,
+        },
+    )
+
+    user_summary = {
+        "user_id": user.user_id,
+        "email": user.email,
+        "full_name": user.full_name,
+        "role": user.role,
+    }
+
+    return {
+        "token": access_token,
+        "access_token": access_token,
+        "expires_in": 86400,
+        "user_id": user.user_id,
+        "email": user.email,
+        "full_name": user.full_name,
+        "role": user.role,
+        "user": user_summary,
     }

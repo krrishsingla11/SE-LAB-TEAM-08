@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 import os
 import time
 
@@ -5,6 +6,59 @@ from flask import Flask, jsonify
 from sqlalchemy import text
 
 from app.extensions import db, jwt
+
+
+def _register_jwt_callbacks(jwt_manager):
+    """Register custom JWTManager error callbacks to enforce consistent HTTP 401 errors."""
+    if getattr(jwt_manager, "_custom_callbacks_registered", False):
+        return
+
+    @jwt_manager.unauthorized_loader
+    def unauthorized_callback(error_string):
+        return jsonify({
+            "error": "UNAUTHORIZED",
+            "message": error_string or "Missing authorization header",
+            "status_code": 401,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }), 401
+
+    @jwt_manager.invalid_token_loader
+    def invalid_token_callback(error_string):
+        return jsonify({
+            "error": "INVALID_TOKEN",
+            "message": error_string or "Signature verification failed",
+            "status_code": 401,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }), 401
+
+    @jwt_manager.expired_token_loader
+    def expired_token_callback(jwt_header, jwt_payload):
+        return jsonify({
+            "error": "TOKEN_EXPIRED",
+            "message": "Token has expired",
+            "status_code": 401,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }), 401
+
+    @jwt_manager.revoked_token_loader
+    def revoked_token_callback(jwt_header, jwt_payload):
+        return jsonify({
+            "error": "TOKEN_REVOKED",
+            "message": "Token has been revoked",
+            "status_code": 401,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }), 401
+
+    @jwt_manager.needs_fresh_token_loader
+    def needs_fresh_token_callback(jwt_header, jwt_payload):
+        return jsonify({
+            "error": "FRESH_TOKEN_REQUIRED",
+            "message": "Fresh token required",
+            "status_code": 401,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }), 401
+
+    jwt_manager._custom_callbacks_registered = True
 
 
 def create_app(test_config=None):
@@ -27,6 +81,7 @@ def create_app(test_config=None):
 
     db.init_app(app)
     jwt.init_app(app)
+    _register_jwt_callbacks(jwt)
 
     # Register models with SQLAlchemy metadata.
     from app.models import (
