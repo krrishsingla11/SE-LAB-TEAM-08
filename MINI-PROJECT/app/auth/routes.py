@@ -27,3 +27,12 @@ def register():
         raise AuthError("INVALID_INPUT", "Request body must be valid JSON", 400)
     result = service.register_user(data)
     return jsonify(result), 201
+
+
+@bp.post("/login", strict_slashes=False)
+def login():
+    data = request.get_json(silent=True)
+    if data is None:
+        raise AuthError("INVALID_INPUT", "Request body must be valid JSON", 400)
+    result = service.login_user(data)
+    return jsonify(result), 200

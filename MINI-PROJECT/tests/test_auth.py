@@ -1,5 +1,9 @@
 """Authentication & RBAC tests (SE8-12 / SE8-14 / SE8-16) - STP section 13.1"""
+from datetime import timedelta
+import time
+
 import bcrypt
+from flask_jwt_extended import create_access_token, decode_token
 import pytest
 
 from app.models import User
@@ -285,22 +289,199 @@ def test_registration_normalizes_email(client, app, db):
         assert user.email == "user.normalized@pes.edu"
 
 
-@SKIP
-def test_tc_auth_03_login_returns_jwt():
+def test_tc_auth_03_login_returns_jwt(client, app):
     """TC-AUTH-03 (High) - OMH-F-002
     Steps:    POST /api/auth/login with valid credentials; decode the JWT.
     Expected: HTTP 200; token returned; payload has user_id, role='buyer', exp=24 hours.
     """
-    pass
+    payload = {
+        "email": "test_buyer@pes.edu",
+        "password": "StrongP@ss123",
+        "full_name": "Test Buyer",
+        "role": "buyer",
+    }
+    res_reg = client.post("/api/auth/register", json=payload)
+    assert res_reg.status_code == 201
+    user_id = res_reg.get_json()["user_id"]
+
+    login_payload = {
+        "email": "test_buyer@pes.edu",
+        "password": "StrongP@ss123",
+    }
+    before_login = time.time()
+    res_login = client.post("/api/auth/login", json=login_payload)
+    after_login = time.time()
+
+    assert res_login.status_code == 200
+    data = res_login.get_json()
+    assert "token" in data
+    assert "access_token" in data
+    token = data["token"]
+    assert isinstance(token, str)
+
+    # Validate non-sensitive user summary in response
+    assert data["user_id"] == user_id
+    assert data["email"] == "test_buyer@pes.edu"
+    assert data["full_name"] == "Test Buyer"
+    assert data["role"] == "buyer"
+    assert "password" not in data
+    assert "password_hash" not in data
+
+    # Verify JWT payload claims and 24-hour expiration
+    with app.app_context():
+        decoded = decode_token(token)
+        assert decoded["sub"] == str(user_id)
+        assert decoded["user_id"] == user_id
+        assert decoded["role"] == "buyer"
+
+        # Expiry is exactly 24 hours (86400 seconds) after issuance
+        assert decoded["exp"] - decoded["iat"] == 86400
+        assert before_login + 86400 - 5 <= decoded["exp"] <= after_login + 86400 + 5
 
 
-@SKIP
-def test_tc_auth_04_login_wrong_password():
+def test_tc_auth_04_login_wrong_password(client):
     """TC-AUTH-04 (High) - OMH-F-002
     Steps:    POST /api/auth/login with a wrong password.
     Expected: HTTP 401; error 'Invalid credentials'; no token issued.
     """
-    pass
+    payload = {
+        "email": "test_buyer@pes.edu",
+        "password": "StrongP@ss123",
+        "full_name": "Test Buyer",
+        "role": "buyer",
+    }
+    client.post("/api/auth/register", json=payload)
+
+    wrong_pw_payload = {
+        "email": "test_buyer@pes.edu",
+        "password": "WrongPassword999",
+    }
+    response = client.post("/api/auth/login", json=wrong_pw_payload)
+    assert response.status_code == 401
+    data = response.get_json()
+    assert data.get("message") == "Invalid credentials"
+    assert "token" not in data
+    assert "access_token" not in data
+
+
+def test_login_unknown_email_returns_401(client):
+    """Unknown email returns generic HTTP 401 without disclosing account non-existence."""
+    response = client.post(
+        "/api/auth/login",
+        json={"email": "nonexistent_user@pes.edu", "password": "StrongP@ss123"},
+    )
+    assert response.status_code == 401
+    data = response.get_json()
+    assert data.get("message") == "Invalid credentials"
+    assert "token" not in data
+    assert "access_token" not in data
+
+
+@pytest.mark.parametrize(
+    "invalid_payload,expected_err",
+    [
+        ({}, "Email is required"),
+        ({"email": "   ", "password": "Pass"}, "Email is required"),
+        ({"email": 123, "password": "Pass"}, "Email is required"),
+        ({"email": "valid@pes.edu"}, "Password is required"),
+        ({"email": "valid@pes.edu", "password": ""}, "Password is required"),
+        ({"email": "valid@pes.edu", "password": None}, "Password is required"),
+    ],
+)
+def test_login_missing_or_invalid_fields(client, invalid_payload, expected_err):
+    """Missing or incorrectly typed login fields return HTTP 400."""
+    response = client.post("/api/auth/login", json=invalid_payload)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert expected_err in data["message"]
+
+
+def test_login_normalizes_email(client):
+    """Login email must be trimmed and lowercased to match registered credentials."""
+    reg_payload = {
+        "email": "user.normalized@pes.edu",
+        "password": "StrongP@ss123",
+        "full_name": "Normalized User",
+        "role": "buyer",
+    }
+    client.post("/api/auth/register", json=reg_payload)
+
+    login_payload = {
+        "email": "   USER.NORMALIZED@PES.EDU   ",
+        "password": "StrongP@ss123",
+    }
+    response = client.post("/api/auth/login", json=login_payload)
+    assert response.status_code == 200
+    assert "token" in response.get_json()
+
+
+def test_login_derives_role_exclusively_from_database(client, app):
+    """Client cannot escalate role via the login payload; role is derived from DB."""
+    reg_payload = {
+        "email": "regular_buyer@pes.edu",
+        "password": "StrongP@ss123",
+        "full_name": "Regular Buyer",
+        "role": "buyer",
+    }
+    client.post("/api/auth/register", json=reg_payload)
+
+    # Malicious client attempts to pass role='admin'
+    login_payload = {
+        "email": "regular_buyer@pes.edu",
+        "password": "StrongP@ss123",
+        "role": "admin",
+    }
+    response = client.post("/api/auth/login", json=login_payload)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["role"] == "buyer"
+
+    with app.app_context():
+        decoded = decode_token(data["token"])
+        assert decoded["role"] == "buyer"
+
+
+def test_jwt_tampered_token_returns_401(client, app):
+    """Protected endpoint with tampered token signature returns HTTP 401."""
+    with app.app_context():
+        valid_token = create_access_token(
+            identity="1",
+            additional_claims={"user_id": 1, "role": "buyer"},
+        )
+    tampered_token = valid_token + "tampered"
+    response = client.get("/api/cart", headers={"Authorization": f"Bearer {tampered_token}"})
+    assert response.status_code == 401
+    data = response.get_json()
+    assert data["error"] == "INVALID_TOKEN"
+    assert "timestamp" in data
+    assert data["status_code"] == 401
+
+
+def test_jwt_expired_token_returns_401(client, app):
+    """Protected endpoint with an expired token returns HTTP 401."""
+    with app.app_context():
+        expired_token = create_access_token(
+            identity="1",
+            expires_delta=timedelta(seconds=-1),
+            additional_claims={"user_id": 1, "role": "buyer"},
+        )
+    response = client.get("/api/cart", headers={"Authorization": f"Bearer {expired_token}"})
+    assert response.status_code == 401
+    data = response.get_json()
+    assert data["error"] == "TOKEN_EXPIRED"
+    assert data["message"] == "Token has expired"
+    assert data["status_code"] == 401
+    assert "timestamp" in data
+
+
+def test_jwt_missing_token_returns_401(client):
+    """Protected endpoint without an Authorization header returns HTTP 401."""
+    response = client.get("/api/cart")
+    assert response.status_code == 401
+    data = response.get_json()
+    assert data["error"] == "UNAUTHORIZED"
+    assert data["status_code"] == 401
+    assert "timestamp" in data
 
 
 @SKIP
