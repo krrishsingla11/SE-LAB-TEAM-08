@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Your cart – Handcrafted Goods Marketplace</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-stone-50 text-slate-900">
+  <header class="border-b border-stone-200 bg-white">
+    <div class="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
+      <a href="index.html" class="font-serif text-xl font-bold text-indigo-900">Handcrafted Goods</a>
+      <nav class="flex gap-4 text-sm font-medium">
+        <a href="catalog.html" class="text-indigo-800 underline">Browse</a>
+        <a href="cart.html" class="text-indigo-800 underline">Cart</a>
+        <a href="artisan-listings.html" class="text-indigo-800 underline">Sell</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-3xl px-4 py-8">
+    <h1 class="font-serif text-3xl font-bold text-indigo-900">Your cart</h1>
+    <div id="error-box" role="alert" class="mt-4 hidden rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800"></div>
+    <p id="status" class="mt-6 text-slate-700" role="status">Loading your cart...</p>
+    <ul id="lines" class="mt-4 divide-y divide-stone-300 rounded border border-stone-300 bg-white"></ul>
+    <div id="summary" class="mt-6 hidden items-center justify-between">
+      <p class="text-lg font-medium">Subtotal: <span id="subtotal"></span></p>
+      <a href="checkout.html" class="rounded bg-indigo-900 px-5 py-2 font-medium text-white hover:bg-indigo-800 focus:outline-none focus:ring-2 focus:ring-indigo-700 focus:ring-offset-2">Go to checkout</a>
+    </div>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script>
+    if (!getToken()) window.location.href = "login.html";
+
+    const linesEl = document.getElementById("lines");
+    const statusEl = document.getElementById("status");
+    const summary = document.getElementById("summary");
+    const errorBox = document.getElementById("error-box");
+    const money = (n) => "₹" + Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    function esc(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    }
+
+    function showError(msg) {
+      errorBox.textContent = msg;
+      errorBox.classList.toggle("hidden", !msg);
+    }
+
+    function render(data) {
+      const lines = data.cart || [];
+      if (!lines.length) {
+        statusEl.textContent = "Your cart is empty.";
+        statusEl.innerHTML = 'Your cart is empty. <a href="catalog.html" class="font-medium text-indigo-800 underline">Browse crafts</a>';
+        linesEl.innerHTML = "";
+        summary.classList.add("hidden");
+        summary.classList.remove("flex");
+        return;
+      }
+      statusEl.textContent = "";
+      linesEl.innerHTML = lines.map((l) => `
+        <li class="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <a href="product.html?id=${l.product_id}" class="font-serif text-lg font-bold text-indigo-900 underline">${esc(l.title)}</a>
+            <p class="text-sm text-slate-700">${money(l.unit_price)} each</p>
+          </div>
+          <div class="flex items-end gap-3">
+            <div>
+              <label for="qty-${l.product_id}" class="block text-xs font-medium">Quantity</label>
+              <input id="qty-${l.product_id}" data-id="${l.product_id}" type="number" min="1" step="1" value="${l.quantity}"
+                class="qty mt-1 w-20 rounded border border-slate-400 bg-white px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-700">
+            </div>
+            <p class="w-28 text-right font-medium">${money(l.line_total)}</p>
+            <button data-remove="${l.product_id}" class="rounded border border-red-700 px-3 py-1 text-sm text-red-800 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-indigo-700">Remove</button>
+          </div>
+        </li>`).join("");
+      document.getElementById("subtotal").textContent = money(data.subtotal);
+      summary.classList.remove("hidden");
+      summary.classList.add("flex");
+    }
+
+    async function run(fn) {
+      showError("");
+      try { render(await fn()); }
+      catch (err) { showError(err.message); load(); }
+    }
+    async function load() {
+      try { render(await api.cartGet()); }
+      catch (err) { statusEl.textContent = ""; showError(err.message); }
+    }
+
+    linesEl.addEventListener("change", (e) => {
+      if (!e.target.classList.contains("qty")) return;
+      const qty = parseInt(e.target.value, 10);
+      const id = e.target.dataset.id;
+      if (!Number.isInteger(qty) || qty < 1) { showError("Quantity must be a whole number of at least 1."); load(); return; }
+      run(() => api.cartUpdate(id, qty));
+    });
+    linesEl.addEventListener("click", (e) => {
+      const id = e.target.dataset.remove;
+      if (id) run(() => api.cartRemove(id));
+    });
+    load();
+  </script>
+</body>
+</html>
