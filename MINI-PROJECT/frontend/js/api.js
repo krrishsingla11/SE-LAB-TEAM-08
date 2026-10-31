@@ -1,6 +1,6 @@
 // MINI-PROJECT/frontend/js/api.js
-// One place for all API calls. Flip USE_MOCK to false on Sat 31 to use the real backend.
-const USE_MOCK = true;
+// One place for all API calls. Run the pages through frontend/serve.py so "/api" reaches the backend.
+const USE_MOCK = false;   // true = fake data (no backend needed), false = real backend
 const BASE_URL = "/api";
 
 function getToken() {
@@ -22,7 +22,15 @@ async function apiCall(method, path, body) {
   });
   const data = await res.json().catch(() => ({}));
   // Backend errors look like {error, message, status_code, timestamp}
-  if (!res.ok) throw new Error(data.message || "Something went wrong. Please try again.");
+  if (!res.ok) {
+    let msg = data.message;
+    if (!msg && (res.status === 404 || res.status === 405)) {
+      msg = "This feature isn't available on the server yet.";
+    }
+    const err = new Error(msg || "Something went wrong. Please try again.");
+    err.status = res.status;
+    throw err;
+  }
   return data;
 }
 
@@ -169,6 +177,16 @@ const api = {
   cartAdd: (product_id, quantity) => apiCall("POST", "/cart/items", { product_id, quantity }),
   cartUpdate: (product_id, quantity) => apiCall("PUT", `/cart/items/${product_id}`, { quantity }),
   cartRemove: (product_id) => apiCall("DELETE", `/cart/items/${product_id}`),
-  checkout: (shipping_address, payment_token) =>
-    apiCall("POST", "/checkout", { shipping_address, payment_token }),
+  // Uses POST /checkout when the backend has it. Until then (404/405) it charges the
+  // payment stub directly with the cart subtotal: no order is created and the cart is not cleared.
+  checkout: async (shipping_address, payment_token) => {
+    try {
+      return await apiCall("POST", "/checkout", { shipping_address, payment_token });
+    } catch (err) {
+      if (USE_MOCK || (err.status !== 404 && err.status !== 405)) throw err;
+      const cart = await apiCall("GET", "/cart");
+      const pay = await apiCall("POST", "/payments/charge", { amount: cart.subtotal, payment_token });
+      return { status: "Payment " + pay.payment_status, txn_ref: pay.transaction_ref, total: pay.amount };
+    }
+  },
 };
