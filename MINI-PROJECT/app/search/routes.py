@@ -86,6 +86,25 @@ def create_product():
     return jsonify(result), 201
 
 
+@bp.put("/products/<int:product_id>")
+@role_required("artisan")
+def update_product(product_id):
+    user_id = int(get_jwt_identity())
+    data = request.get_json(silent=True)
+    if data is None:
+        raise SearchError("INVALID_INPUT", "Request body must be valid JSON", 400)
+    result = service.update_product(user_id=user_id, product_id=product_id, data=data)
+    return jsonify(result), 200
+
+
+@bp.delete("/products/<int:product_id>")
+@role_required("artisan")
+def delete_product(product_id):
+    user_id = int(get_jwt_identity())
+    result = service.soft_delete_product(user_id=user_id, product_id=product_id)
+    return jsonify(result), 200
+
+
 @bp.get("/uploads/<path:filename>")
 def get_upload(filename):
     return send_from_directory(service.get_upload_folder(), filename)

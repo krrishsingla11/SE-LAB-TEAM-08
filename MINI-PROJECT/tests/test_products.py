@@ -657,22 +657,651 @@ def test_create_product_payload_too_large_returns_413(client, app, db):
     assert "timestamp" in body
 
 
-@SKIP
-def test_tc_prod_03_artisan_updates_own_listing():
+def _create_test_product(
+    db, artisan, category, title="Test Craft", price=100.00, stock=10, is_active=True
+):
+    prod = Product(
+        artisan_id=artisan.artisan_id,
+        category_id=category.category_id,
+        title=title,
+        description="Handcrafted authentic item",
+        price=price,
+        is_active=is_active,
+    )
+    db.session.add(prod)
+    db.session.flush()
+    inv = Inventory(
+        product_id=prod.product_id,
+        stock_quantity=stock,
+        low_stock_threshold=5,
+    )
+    db.session.add(inv)
+    db.session.commit()
+    return prod, inv
+
+
+def test_tc_prod_03_artisan_updates_own_listing(client, app, db):
     """TC-PROD-03 (High) - OMH-F-006
+
     Steps:    PUT /api/products/101 with price=499.00, stock_qty=35 (own product).
     Expected: HTTP 200; price 499.00; inventory 35.
     """
-    pass
+    user, artisan = _create_user(
+        db, "artisan_tc03@pes.edu", "artisan", shop_name="Weaving Shed"
+    )
+    token = _artisan_token(app, user.user_id)
+    cat = _category(db, "Textiles", "textiles")
+    prod, inv = _create_test_product(
+        db, artisan, cat, title="Woolen Shawl", price=450.00, stock=20
+    )
+
+    res = client.put(
+        f"/api/products/{prod.product_id}",
+        json={"price": 499.00, "stock_qty": 35},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body["product_id"] == prod.product_id
+    assert body["price"] == 499.00
+    assert body["stock_quantity"] == 35
+    assert body["message"] == "Product listing updated successfully"
+
+    with app.app_context():
+        p = db.session.get(Product, prod.product_id)
+        assert float(p.price) == 499.00
+        i = db.session.scalar(
+            db.select(Inventory).where(Inventory.product_id == prod.product_id)
+        )
+        assert i.stock_quantity == 35
 
 
-@SKIP
-def test_tc_prod_04_modify_other_artisans_product():
+def test_tc_prod_04_modify_other_artisans_product(client, app, db):
     """TC-PROD-04 (High) - OMH-F-006
+
     Steps:    Artisan A sends PUT /api/products/102 (owned by Artisan B).
     Expected: HTTP 403; error 'Not authorized to modify this listing'; data untouched.
     """
-    pass
+    user_a, _ = _create_user(
+        db, "artisan_a_tc04@pes.edu", "artisan", shop_name="Studio Alpha"
+    )
+    token_a = _artisan_token(app, user_a.user_id)
+
+    user_b, artisan_b = _create_user(
+        db, "artisan_b_tc04@pes.edu", "artisan", shop_name="Studio Beta"
+    )
+    cat = _category(db, "Pottery", "pottery")
+    prod_b, inv_b = _create_test_product(
+        db, artisan_b, cat, title="Ceramic Teapot", price=320.00, stock=15
+    )
+
+    res = client.put(
+        f"/api/products/{prod_b.product_id}",
+        json={"price": 500.00, "stock_qty": 50},
+        headers={"Authorization": f"Bearer {token_a}"},
+    )
+
+    assert res.status_code == 403
+    body = res.get_json()
+    assert body["error"] == "FORBIDDEN"
+    assert body["message"] == "Not authorized to modify this listing"
+
+    with app.app_context():
+        p = db.session.get(Product, prod_b.product_id)
+        assert float(p.price) == 320.00
+        i = db.session.scalar(
+            db.select(Inventory).where(Inventory.product_id == prod_b.product_id)
+        )
+        assert i.stock_quantity == 15
+
+
+def test_update_product_price_only_preserves_stock_and_desc(client, app, db):
+    """Update only price: description and stock quantity remain unchanged."""
+    user, artisan = _create_user(
+        db, "artisan_price_only@pes.edu", "artisan", shop_name="Wood Shop"
+    )
+    token = _artisan_token(app, user.user_id)
+    cat = _category(db, "Woodwork", "woodwork")
+    prod, _ = _create_test_product(
+        db, artisan, cat, title="Teak Table", price=250.00, stock=8
+    )
+
+    res = client.put(
+        f"/api/products/{prod.product_id}",
+        json={"price": 310.00},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body["price"] == 310.00
+    assert body["description"] == "Handcrafted authentic item"
+    assert body["stock_quantity"] == 8
+
+    with app.app_context():
+        p = db.session.get(Product, prod.product_id)
+        assert float(p.price) == 310.00
+        assert p.description == "Handcrafted authentic item"
+        inv = db.session.scalar(
+            db.select(Inventory).where(Inventory.product_id == prod.product_id)
+        )
+        assert inv.stock_quantity == 8
+
+
+def test_update_product_description_aliases(client, app, db):
+    """Update description via 'description' and 'desc' aliases."""
+    user, artisan = _create_user(
+        db, "artisan_desc_alias@pes.edu", "artisan", shop_name="Glass Art"
+    )
+    token = _artisan_token(app, user.user_id)
+    cat = _category(db, "Glass", "glass")
+    prod, _ = _create_test_product(
+        db, artisan, cat, title="Glass Ornament", price=120.00, stock=5
+    )
+
+    # 1. Update using 'description'
+    res1 = client.put(
+        f"/api/products/{prod.product_id}",
+        json={"description": "First updated description"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res1.status_code == 200
+    assert res1.get_json()["description"] == "First updated description"
+
+    # 2. Update using 'desc' alias
+    res2 = client.put(
+        f"/api/products/{prod.product_id}",
+        json={"desc": "Second updated description"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res2.status_code == 200
+    assert res2.get_json()["description"] == "Second updated description"
+
+
+def test_update_product_stock_aliases(client, app, db):
+    """Update stock quantity via 'stock_qty' and 'stock_quantity' aliases."""
+    user, artisan = _create_user(
+        db, "artisan_stock_alias@pes.edu", "artisan", shop_name="Metalworks"
+    )
+    token = _artisan_token(app, user.user_id)
+    cat = _category(db, "Metalwork", "metalwork")
+    prod, _ = _create_test_product(
+        db, artisan, cat, title="Bronze Bell", price=85.00, stock=10
+    )
+
+    # 1. Update using 'stock_qty'
+    res1 = client.put(
+        f"/api/products/{prod.product_id}",
+        json={"stock_qty": 22},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res1.status_code == 200
+    assert res1.get_json()["stock_quantity"] == 22
+
+    # 2. Update using 'stock_quantity'
+    res2 = client.put(
+        f"/api/products/{prod.product_id}",
+        json={"stock_quantity": 40},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res2.status_code == 200
+    assert res2.get_json()["stock_quantity"] == 40
+
+
+def test_update_product_partial_preserves_omitted_fields(client, app, db):
+    """Partial update preserves title, category, description, and images."""
+    user, artisan = _create_user(
+        db, "artisan_preserve@pes.edu", "artisan", shop_name="Pottery Loft"
+    )
+    token = _artisan_token(app, user.user_id)
+    cat = _category(db, "Pottery", "pottery")
+    prod, _ = _create_test_product(
+        db, artisan, cat, title="Ceramic Pitcher", price=95.00, stock=14
+    )
+
+    # Add an image record
+    img = ProductImage(
+        product_id=prod.product_id,
+        image_url="/uploads/pitcher.jpg",
+        is_primary=True,
+    )
+    db.session.add(img)
+    db.session.commit()
+
+    res = client.put(
+        f"/api/products/{prod.product_id}",
+        json={"price": 105.00},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 200
+
+    with app.app_context():
+        p = db.session.get(Product, prod.product_id)
+        assert p.title == "Ceramic Pitcher"
+        assert p.category_id == cat.category_id
+        assert p.description == "Handcrafted authentic item"
+        assert float(p.price) == 105.00
+        images = db.session.scalars(
+            db.select(ProductImage).where(ProductImage.product_id == prod.product_id)
+        ).all()
+        assert len(images) == 1
+        assert images[0].image_url == "/uploads/pitcher.jpg"
+
+
+@pytest.mark.parametrize(
+    "invalid_price",
+    [0, 0.00, -1, -50.50, "abc", "nan", "inf", None, True],
+)
+def test_update_product_invalid_and_zero_price_rejected(client, app, db, invalid_price):
+    """Invalid or zero price is rejected with HTTP 422 VALIDATION_ERROR."""
+    user, artisan = _create_user(
+        db, f"artisan_price_{abs(hash(str(invalid_price)))}@pes.edu", "artisan", shop_name="Shop"
+    )
+    token = _artisan_token(app, user.user_id)
+    cat = _category(db, "Textiles", "textiles")
+    prod, _ = _create_test_product(db, artisan, cat, price=100.00, stock=5)
+
+    res = client.put(
+        f"/api/products/{prod.product_id}",
+        json={"price": invalid_price},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 422
+    body = res.get_json()
+    assert body["error"] == "VALIDATION_ERROR"
+
+
+@pytest.mark.parametrize(
+    "invalid_stock",
+    [-1, -10, 10.5, "10.5", "invalid", None, True],
+)
+def test_update_product_negative_and_fractional_stock_rejected(client, app, db, invalid_stock):
+    """Negative, fractional, or non-integer stock is rejected with HTTP 422."""
+    user, artisan = _create_user(
+        db, f"artisan_stock_{abs(hash(str(invalid_stock)))}@pes.edu", "artisan", shop_name="Shop"
+    )
+    token = _artisan_token(app, user.user_id)
+    cat = _category(db, "Textiles", "textiles")
+    prod, _ = _create_test_product(db, artisan, cat, price=100.00, stock=5)
+
+    res = client.put(
+        f"/api/products/{prod.product_id}",
+        json={"stock_qty": invalid_stock},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 422
+    body = res.get_json()
+    assert body["error"] == "VALIDATION_ERROR"
+
+
+def test_update_product_empty_body_rejected(client, app, db):
+    """Empty JSON body is rejected with HTTP 400 INVALID_INPUT."""
+    user, artisan = _create_user(
+        db, "artisan_empty_body@pes.edu", "artisan", shop_name="Shop"
+    )
+    token = _artisan_token(app, user.user_id)
+    cat = _category(db, "Textiles", "textiles")
+    prod, _ = _create_test_product(db, artisan, cat, price=100.00, stock=5)
+
+    res = client.put(
+        f"/api/products/{prod.product_id}",
+        json={},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 400
+    assert res.get_json()["error"] == "INVALID_INPUT"
+
+
+@pytest.mark.parametrize(
+    "unsupported_payload",
+    [
+        {"title": "New Title"},
+        {"category_id": 2},
+        {"is_active": False},
+        {"artisan_id": 99},
+        {"images": ["/uploads/fake.jpg"]},
+    ],
+)
+def test_update_product_unsupported_fields_rejected(client, app, db, unsupported_payload):
+    """Fields outside F-006 scope (title, category, is_active, images) return HTTP 422."""
+    user, artisan = _create_user(
+        db, f"artisan_unsupp_{abs(hash(str(unsupported_payload)))}@pes.edu",
+        "artisan", shop_name="Shop"
+    )
+    token = _artisan_token(app, user.user_id)
+    cat = _category(db, "Textiles", "textiles")
+    prod, _ = _create_test_product(db, artisan, cat, price=100.00, stock=5)
+
+    res = client.put(
+        f"/api/products/{prod.product_id}",
+        json=unsupported_payload,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 422
+    body = res.get_json()
+    assert body["error"] == "VALIDATION_ERROR"
+    assert "not editable" in body["message"]
+
+
+def test_update_product_missing_product_returns_404(client, app, db):
+    """PUT to nonexistent product returns HTTP 404 NOT_FOUND."""
+    user, _ = _create_user(
+        db, "artisan_missing_prod@pes.edu", "artisan", shop_name="Shop"
+    )
+    token = _artisan_token(app, user.user_id)
+
+    res = client.put(
+        "/api/products/999999",
+        json={"price": 100.00},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 404
+    assert res.get_json()["error"] == "NOT_FOUND"
+
+
+def test_update_product_already_inactive_returns_404(client, app, db):
+    """Updating an already inactive product treats it as not found (HTTP 404)."""
+    user, artisan = _create_user(
+        db, "artisan_inactive_prod@pes.edu", "artisan", shop_name="Shop"
+    )
+    token = _artisan_token(app, user.user_id)
+    cat = _category(db, "Textiles", "textiles")
+    prod, _ = _create_test_product(
+        db, artisan, cat, price=100.00, stock=5, is_active=False
+    )
+
+    res = client.put(
+        f"/api/products/{prod.product_id}",
+        json={"price": 200.00},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 404
+    assert res.get_json()["error"] == "NOT_FOUND"
+
+
+def test_update_product_artisan_without_profile_returns_403(client, app, db):
+    """Artisan user without an Artisan profile receives HTTP 403."""
+    user, _ = _create_user(
+        db, "artisan_no_profile_put@pes.edu", "artisan", shop_name=None
+    )
+    token = _artisan_token(app, user.user_id)
+    cat = _category(db, "Textiles", "textiles")
+
+    # Create product under another artisan so product exists
+    _, artisan_other = _create_user(
+        db, "artisan_other_prof@pes.edu", "artisan", shop_name="Other Shop"
+    )
+    prod, _ = _create_test_product(db, artisan_other, cat, price=100.00, stock=5)
+
+    res = client.put(
+        f"/api/products/{prod.product_id}",
+        json={"price": 200.00},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 403
+    assert "Artisan profile required" in res.get_json()["message"]
+
+
+def test_update_product_buyer_returns_403(client, app, db):
+    """Buyer account receives HTTP 403 Forbidden."""
+    buyer, _ = _create_user(db, "buyer_put@pes.edu", "buyer")
+    buyer_token = _artisan_token(app, buyer.user_id, role="buyer")
+
+    _, artisan = _create_user(
+        db, "artisan_for_buyer_put@pes.edu", "artisan", shop_name="Shop"
+    )
+    cat = _category(db, "Textiles", "textiles")
+    prod, _ = _create_test_product(db, artisan, cat, price=100.00, stock=5)
+
+    res = client.put(
+        f"/api/products/{prod.product_id}",
+        json={"price": 200.00},
+        headers={"Authorization": f"Bearer {buyer_token}"},
+    )
+    assert res.status_code == 403
+    assert res.get_json()["error"] == "FORBIDDEN"
+
+
+def test_update_product_unauthenticated_returns_401(client, app, db):
+    """Unauthenticated request returns HTTP 401 Unauthorized."""
+    _, artisan = _create_user(
+        db, "artisan_unauth_put@pes.edu", "artisan", shop_name="Shop"
+    )
+    cat = _category(db, "Textiles", "textiles")
+    prod, _ = _create_test_product(db, artisan, cat, price=100.00, stock=5)
+
+    res = client.put(
+        f"/api/products/{prod.product_id}",
+        json={"price": 200.00},
+    )
+    assert res.status_code == 401
+    assert res.get_json()["error"] == "UNAUTHORIZED"
+
+
+# ---------------------------------------------------------------------------
+# Soft-Delete Tests (OMH-F-006)
+# ---------------------------------------------------------------------------
+
+def test_soft_delete_product_artisan_success(client, app, db):
+    """Artisan successfully soft-deletes own product (HTTP 200)."""
+    user, artisan = _create_user(
+        db, "artisan_soft_del@pes.edu", "artisan", shop_name="Pottery Lab"
+    )
+    token = _artisan_token(app, user.user_id)
+    cat = _category(db, "Pottery", "pottery")
+    prod, _ = _create_test_product(
+        db, artisan, cat, title="Clay Mug", price=80.00, stock=12
+    )
+
+    res = client.delete(
+        f"/api/products/{prod.product_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body["product_id"] == prod.product_id
+    assert body["is_active"] is False
+    assert body["message"] == "Product listing soft-deleted successfully"
+
+    with app.app_context():
+        p = db.session.get(Product, prod.product_id)
+        assert p is not None
+        assert p.is_active is False
+
+
+def test_soft_delete_preserves_database_records(client, app, db):
+    """Soft deletion preserves Product, ProductImage, and Inventory rows."""
+    user, artisan = _create_user(
+        db, "artisan_preserve_del@pes.edu", "artisan", shop_name="Carvers"
+    )
+    token = _artisan_token(app, user.user_id)
+    cat = _category(db, "Woodwork", "woodwork")
+    prod, inv = _create_test_product(
+        db, artisan, cat, title="Teak Figurine", price=220.00, stock=5
+    )
+
+    img = ProductImage(
+        product_id=prod.product_id,
+        image_url="/uploads/figurine.jpg",
+        is_primary=True,
+    )
+    db.session.add(img)
+    db.session.commit()
+
+    res = client.delete(
+        f"/api/products/{prod.product_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 200
+
+    with app.app_context():
+        p = db.session.get(Product, prod.product_id)
+        assert p is not None
+        assert p.is_active is False
+        assert p.title == "Teak Figurine"
+
+        i = db.session.scalar(
+            db.select(Inventory).where(Inventory.product_id == prod.product_id)
+        )
+        assert i is not None
+        assert i.stock_quantity == 5
+
+        imgs = db.session.scalars(
+            db.select(ProductImage).where(ProductImage.product_id == prod.product_id)
+        ).all()
+        assert len(imgs) == 1
+        assert imgs[0].image_url == "/uploads/figurine.jpg"
+
+
+def test_soft_delete_product_disappears_from_catalog_search(client, app, db):
+    """Soft-deleted product disappears from catalog search results."""
+    user, artisan = _create_user(
+        db, "artisan_catalog_search_del@pes.edu", "artisan", shop_name="Silk Co"
+    )
+    token = _artisan_token(app, user.user_id)
+    cat = _category(db, "Textiles", "textiles")
+    prod, _ = _create_test_product(
+        db, artisan, cat, title="Unique Indigo Tapestry", price=950.00, stock=2
+    )
+
+    # 1. Before deletion: product is returned in catalog search
+    res_before = client.get("/api/products?q=Indigo")
+    assert res_before.status_code == 200
+    ids_before = [p["product_id"] for p in res_before.get_json()["products"]]
+    assert prod.product_id in ids_before
+
+    # 2. Soft-delete product
+    res_del = client.delete(
+        f"/api/products/{prod.product_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res_del.status_code == 200
+
+    # 3. After deletion: product is excluded from catalog search
+    res_after = client.get("/api/products?q=Indigo")
+    assert res_after.status_code == 200
+    ids_after = [p["product_id"] for p in res_after.get_json()["products"]]
+    assert prod.product_id not in ids_after
+
+
+def test_soft_delete_product_returns_404_on_public_detail(client, app, db):
+    """Soft-deleted product returns HTTP 404 from public detail endpoint."""
+    user, artisan = _create_user(
+        db, "artisan_detail_del@pes.edu", "artisan", shop_name="Jewelry"
+    )
+    token = _artisan_token(app, user.user_id)
+    cat = _category(db, "Metalwork", "metalwork")
+    prod, _ = _create_test_product(
+        db, artisan, cat, title="Silver Brooch", price=340.00, stock=3
+    )
+
+    # 1. Before deletion: 200 OK
+    res_before = client.get(f"/api/products/{prod.product_id}")
+    assert res_before.status_code == 200
+
+    # 2. Soft-delete
+    client.delete(
+        f"/api/products/{prod.product_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    # 3. After deletion: 404 NOT_FOUND
+    res_after = client.get(f"/api/products/{prod.product_id}")
+    assert res_after.status_code == 404
+    assert res_after.get_json()["error"] == "NOT_FOUND"
+
+
+def test_soft_delete_buyer_returns_403(client, app, db):
+    """Buyer account cannot delete products (HTTP 403 Forbidden)."""
+    buyer, _ = _create_user(db, "buyer_del@pes.edu", "buyer")
+    buyer_token = _artisan_token(app, buyer.user_id, role="buyer")
+
+    _, artisan = _create_user(
+        db, "artisan_del_by_buyer@pes.edu", "artisan", shop_name="Shop"
+    )
+    cat = _category(db, "Textiles", "textiles")
+    prod, _ = _create_test_product(db, artisan, cat, price=100.00, stock=5)
+
+    res = client.delete(
+        f"/api/products/{prod.product_id}",
+        headers={"Authorization": f"Bearer {buyer_token}"},
+    )
+    assert res.status_code == 403
+    assert res.get_json()["error"] == "FORBIDDEN"
+
+
+def test_soft_delete_non_owner_returns_403(client, app, db):
+    """Artisan cannot soft-delete another artisan's product (HTTP 403)."""
+    user_a, _ = _create_user(
+        db, "artisan_a_del@pes.edu", "artisan", shop_name="Shop A"
+    )
+    token_a = _artisan_token(app, user_a.user_id)
+
+    _, artisan_b = _create_user(
+        db, "artisan_b_del@pes.edu", "artisan", shop_name="Shop B"
+    )
+    cat = _category(db, "Textiles", "textiles")
+    prod_b, _ = _create_test_product(db, artisan_b, cat, price=100.00, stock=5)
+
+    res = client.delete(
+        f"/api/products/{prod_b.product_id}",
+        headers={"Authorization": f"Bearer {token_a}"},
+    )
+    assert res.status_code == 403
+    body = res.get_json()
+    assert body["error"] == "FORBIDDEN"
+    assert body["message"] == "Not authorized to modify this listing"
+
+    with app.app_context():
+        p = db.session.get(Product, prod_b.product_id)
+        assert p.is_active is True
+
+
+def test_soft_delete_missing_product_returns_404(client, app, db):
+    """DELETE to nonexistent product returns HTTP 404 NOT_FOUND."""
+    user, _ = _create_user(
+        db, "artisan_del_missing@pes.edu", "artisan", shop_name="Shop"
+    )
+    token = _artisan_token(app, user.user_id)
+
+    res = client.delete(
+        "/api/products/999999",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 404
+    assert res.get_json()["error"] == "NOT_FOUND"
+
+
+def test_soft_delete_already_inactive_product_returns_404(client, app, db):
+    """DELETE on already soft-deleted product returns HTTP 404 NOT_FOUND."""
+    user, artisan = _create_user(
+        db, "artisan_del_twice@pes.edu", "artisan", shop_name="Shop"
+    )
+    token = _artisan_token(app, user.user_id)
+    cat = _category(db, "Textiles", "textiles")
+    prod, _ = _create_test_product(
+        db, artisan, cat, price=100.00, stock=5, is_active=False
+    )
+
+    res = client.delete(
+        f"/api/products/{prod.product_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 404
+    assert res.get_json()["error"] == "NOT_FOUND"
+
+
+def test_soft_delete_unauthenticated_returns_401(client, app, db):
+    """Unauthenticated DELETE returns HTTP 401 Unauthorized."""
+    _, artisan = _create_user(
+        db, "artisan_del_unauth@pes.edu", "artisan", shop_name="Shop"
+    )
+    cat = _category(db, "Textiles", "textiles")
+    prod, _ = _create_test_product(db, artisan, cat, price=100.00, stock=5)
+
+    res = client.delete(f"/api/products/{prod.product_id}")
+    assert res.status_code == 401
+    assert res.get_json()["error"] == "UNAUTHORIZED"
 
 
 @SKIP
