@@ -296,6 +296,230 @@ def create_product(user_id: int, data: dict, files=None) -> dict:
     }
 
 
+ALLOWED_UPDATE_FIELDS = {
+    "price",
+    "description",
+    "desc",
+    "stock_qty",
+    "stock_quantity",
+}
+
+
+def validate_product_update_input(data: dict):
+    """Validate partial product update fields (OMH-F-006).
+
+    Allowed fields:
+        - price (positive decimal > 0.00)
+        - description / desc (non-empty string)
+        - stock_qty / stock_quantity (non-negative integer >= 0)
+
+    Returns:
+        tuple: (parsed_price, parsed_desc, parsed_stock)
+
+    Raises:
+        SearchError: HTTP 400 if data is empty.
+        SearchError: HTTP 422 if unsupported fields or invalid values are provided.
+    """
+    if not isinstance(data, dict) or not data:
+        raise SearchError("INVALID_INPUT", "Request body must not be empty", 400)
+
+    errors = []
+
+    unsupported = [k for k in data.keys() if k not in ALLOWED_UPDATE_FIELDS]
+    for k in sorted(unsupported):
+        errors.append(f"Field '{k}' is not editable")
+
+    parsed_price = None
+    if "price" in data:
+        price_raw = data["price"]
+        if price_raw is None or isinstance(price_raw, bool) or price_raw == "":
+            errors.append("Price is required")
+        else:
+            try:
+                if isinstance(price_raw, (int, float)):
+                    if math.isnan(price_raw) or math.isinf(price_raw):
+                        raise ValueError
+                    parsed_price = round(Decimal(str(price_raw)), 2)
+                elif isinstance(price_raw, str):
+                    s = price_raw.strip().lower()
+                    if s in ("nan", "inf", "-inf", "+inf", "infinity", "-infinity"):
+                        raise ValueError
+                    parsed_price = round(Decimal(s), 2)
+                elif isinstance(price_raw, Decimal):
+                    if price_raw.is_nan() or price_raw.is_infinite():
+                        raise ValueError
+                    parsed_price = round(price_raw, 2)
+                else:
+                    raise ValueError
+
+                if parsed_price <= Decimal("0.00"):
+                    errors.append("Price must be greater than zero")
+            except (InvalidOperation, ValueError, TypeError):
+                errors.append("Price must be a valid positive number")
+
+    parsed_desc = None
+    if "description" in data or "desc" in data:
+        desc_raw = (
+            data.get("description")
+            if "description" in data
+            else data.get("desc")
+        )
+        if desc_raw is None or not isinstance(desc_raw, str) or not desc_raw.strip():
+            errors.append("Description must be a non-empty string")
+        else:
+            parsed_desc = desc_raw.strip()
+
+    parsed_stock = None
+    if "stock_qty" in data or "stock_quantity" in data:
+        stock_raw = (
+            data.get("stock_qty")
+            if "stock_qty" in data
+            else data.get("stock_quantity")
+        )
+        if stock_raw is None or isinstance(stock_raw, bool) or stock_raw == "":
+            errors.append("Stock quantity is required")
+        else:
+            try:
+                if isinstance(stock_raw, float):
+                    raise ValueError
+                if isinstance(stock_raw, str):
+                    s = stock_raw.strip()
+                    if not re.match(r"^-?\d+$", s):
+                        raise ValueError
+                    parsed_stock = int(s)
+                elif isinstance(stock_raw, int):
+                    parsed_stock = stock_raw
+                else:
+                    raise ValueError
+
+                if parsed_stock < 0:
+                    errors.append("Stock quantity cannot be negative")
+            except (ValueError, TypeError):
+                errors.append("Stock quantity must be a non-negative whole number")
+
+    if errors:
+        raise SearchError("VALIDATION_ERROR", "; ".join(errors), 422, errors=errors)
+
+    return parsed_price, parsed_desc, parsed_stock
+
+
+def update_product(user_id: int, product_id: int, data: dict) -> dict:
+    """Update details (price, description, stock) of an artisan's own product (OMH-F-006).
+
+    Args:
+        user_id (int): Authenticated user ID extracted from JWT token.
+        product_id (int): ID of the product to update.
+        data (dict): Request payload containing fields to update.
+
+    Returns:
+        dict: Updated product summary.
+    """
+    parsed_price, parsed_desc, parsed_stock = validate_product_update_input(data)
+
+    product = db.session.get(Product, product_id)
+    if product is None or not product.is_active:
+        raise SearchError("NOT_FOUND", "Product not found", 404)
+
+    artisan = db.session.scalar(
+        db.select(Artisan).where(Artisan.user_id == user_id)
+    )
+    if artisan is None:
+        raise SearchError(
+            "FORBIDDEN",
+            "Artisan profile required to modify listings",
+            403,
+        )
+
+    if product.artisan_id != artisan.artisan_id:
+        raise SearchError(
+            "FORBIDDEN",
+            "Not authorized to modify this listing",
+            403,
+        )
+
+    inv = db.session.scalar(
+        db.select(Inventory).where(Inventory.product_id == product.product_id)
+    )
+
+    try:
+        if parsed_price is not None:
+            product.price = parsed_price
+        if parsed_desc is not None:
+            product.description = parsed_desc
+        if parsed_stock is not None:
+            if inv is None:
+                inv = Inventory(
+                    product_id=product.product_id,
+                    stock_quantity=parsed_stock,
+                    low_stock_threshold=5,
+                )
+                db.session.add(inv)
+            else:
+                inv.stock_quantity = parsed_stock
+
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+
+    return {
+        "product_id": product.product_id,
+        "title": product.title,
+        "description": product.description,
+        "price": float(product.price),
+        "stock_quantity": inv.stock_quantity if inv is not None else 0,
+        "category_id": product.category_id,
+        "artisan_id": product.artisan_id,
+        "is_active": product.is_active,
+        "message": "Product listing updated successfully",
+    }
+
+
+def soft_delete_product(user_id: int, product_id: int) -> dict:
+    """Soft-delete an artisan's own product by setting is_active=False (OMH-F-006).
+
+    Args:
+        user_id (int): Authenticated user ID extracted from JWT token.
+        product_id (int): ID of the product to soft-delete.
+
+    Returns:
+        dict: Deletion confirmation summary.
+    """
+    product = db.session.get(Product, product_id)
+    if product is None or not product.is_active:
+        raise SearchError("NOT_FOUND", "Product not found", 404)
+
+    artisan = db.session.scalar(
+        db.select(Artisan).where(Artisan.user_id == user_id)
+    )
+    if artisan is None:
+        raise SearchError(
+            "FORBIDDEN",
+            "Artisan profile required to modify listings",
+            403,
+        )
+
+    if product.artisan_id != artisan.artisan_id:
+        raise SearchError(
+            "FORBIDDEN",
+            "Not authorized to modify this listing",
+            403,
+        )
+
+    try:
+        product.is_active = False
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+
+    return {
+        "product_id": product.product_id,
+        "is_active": False,
+        "message": "Product listing soft-deleted successfully",
+    }
+
+
 def _like(text):
     escaped = text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     return f"%{escaped}%"
