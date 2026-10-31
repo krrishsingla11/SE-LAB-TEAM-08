@@ -1,7 +1,9 @@
 from datetime import datetime, timezone
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, send_from_directory
+from flask_jwt_extended import get_jwt_identity
 
+from app.middleware.rbac import role_required
 from app.search import service
 from app.search.service import SearchError
 
@@ -16,6 +18,8 @@ def handle_search_error(e):
         "status_code": e.status,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+    if getattr(e, "errors", None):
+        body["errors"] = e.errors
     return jsonify(body), e.status
 
 
@@ -50,3 +54,47 @@ def product_detail(product_id):
 @bp.get("/categories")
 def categories():
     return jsonify({"categories": service.list_categories()})
+
+
+@bp.post("/products")
+@role_required("artisan")
+def create_product():
+    user_id = int(get_jwt_identity())
+    if request.is_json:
+        data = request.get_json(silent=True)
+        if data is None:
+            raise SearchError("INVALID_INPUT", "Request body must be valid JSON", 400)
+        files = []
+    elif request.form or request.files:
+        data = request.form.to_dict()
+        files = request.files.getlist("images")
+        if not files and "image" in request.files:
+            files = request.files.getlist("image")
+    else:
+        data = request.get_json(silent=True)
+        if data is not None:
+            files = []
+        else:
+            data = request.form.to_dict()
+            files = request.files.getlist("images")
+            if not files and "image" in request.files:
+                files = request.files.getlist("image")
+            if not data and not files:
+                raise SearchError("INVALID_INPUT", "Request body must not be empty", 400)
+
+    result = service.create_product(user_id=user_id, data=data, files=files)
+    return jsonify(result), 201
+
+
+@bp.get("/uploads/<path:filename>")
+def get_upload(filename):
+    return send_from_directory(service.get_upload_folder(), filename)
+
+
+@bp.record_once
+def _register_root_uploads(state):
+    app = state.app
+    if "root_uploads" not in app.view_functions:
+        @app.get("/uploads/<path:filename>", endpoint="root_uploads")
+        def root_upload(filename):
+            return send_from_directory(service.get_upload_folder(), filename)
