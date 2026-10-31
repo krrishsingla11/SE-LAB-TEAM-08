@@ -10,7 +10,7 @@
   <header class="border-b border-stone-200 bg-white">
     <div class="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
       <a href="index.html" class="font-serif text-xl font-bold text-indigo-900">Handcrafted Goods</a>
-      <a href="register.html" class="text-sm font-medium text-indigo-800 underline">Create account</a>
+      <nav id="site-nav"></nav>
     </div>
   </header>
 
@@ -76,6 +76,7 @@
       try {
         const data = await api.login(email, password);
         localStorage.setItem("token", data.token);
+        localStorage.setItem("role", data.role || "");
         window.location.href = "index.html";
       } catch (err) {
         errorBox.textContent = err.message;
@@ -86,5 +87,6 @@
       }
     });
   </script>
+  <script src="js/nav.js"></script>
 </body>
 </html>

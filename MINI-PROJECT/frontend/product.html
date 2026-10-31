@@ -10,10 +10,7 @@
   <header class="border-b border-stone-200 bg-white">
     <div class="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
       <a href="index.html" class="font-serif text-xl font-bold text-indigo-900">Handcrafted Goods</a>
-      <nav class="flex gap-4 text-sm font-medium">
-        <a href="catalog.html" class="text-indigo-800 underline">Browse</a>
-        <a href="login.html" class="text-indigo-800 underline">Log in</a>
-      </nav>
+      <nav id="site-nav"></nav>
     </div>
   </header>
 
@@ -90,6 +87,7 @@
         try {
           await api.cartAdd(p.product_id, qty);
           showMessage("Added to cart.", true);
+          msg.innerHTML = 'Added to cart. <a href="cart.html" class="font-medium underline">View cart and checkout</a>';
         } catch (err) {
           showMessage(err.message, false);
         } finally {
@@ -107,5 +105,6 @@
       }
     })();
   </script>
+  <script src="js/nav.js"></script>
 </body>
 </html>
