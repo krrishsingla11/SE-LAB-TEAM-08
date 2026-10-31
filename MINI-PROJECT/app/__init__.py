@@ -1,11 +1,16 @@
 from datetime import datetime, timezone
+import mimetypes
 import os
 import time
 
 from flask import Flask, jsonify
 from sqlalchemy import text
+from werkzeug.exceptions import RequestEntityTooLarge
 
 from app.extensions import db, jwt
+
+# Ensure WebP MIME type is registered consistently across platforms.
+mimetypes.add_type("image/webp", ".webp")
 
 
 def _register_jwt_callbacks(jwt_manager):
@@ -73,6 +78,9 @@ def create_app(test_config=None):
         JWT_SECRET_KEY=os.getenv(
             "JWT_SECRET_KEY", "dev-only-change-me"
         ),
+        MAX_CONTENT_LENGTH=int(
+            os.getenv("MAX_CONTENT_LENGTH", 30 * 1024 * 1024)
+        ),
         START_TIME=time.monotonic(),
     )
 
@@ -82,6 +90,16 @@ def create_app(test_config=None):
     db.init_app(app)
     jwt.init_app(app)
     _register_jwt_callbacks(jwt)
+
+    @app.errorhandler(RequestEntityTooLarge)
+    @app.errorhandler(413)
+    def handle_payload_too_large(e):
+        return jsonify({
+            "error": "PAYLOAD_TOO_LARGE",
+            "message": "Request payload exceeds maximum allowed size of 30 MB",
+            "status_code": 413,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }), 413
 
     # Register models with SQLAlchemy metadata.
     from app.models import (
