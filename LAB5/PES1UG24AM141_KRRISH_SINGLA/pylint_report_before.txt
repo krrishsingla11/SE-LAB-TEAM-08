@@ -1,0 +1,18 @@
+************* Module society_dues
+society_dues.py:13:0: C0301: Line too long (104/100) (line-too-long)
+society_dues.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+society_dues.py:8:0: C0116: Missing function or method docstring (missing-function-docstring)
+society_dues.py:8:0: C0103: Function name "addDue" doesn't conform to snake_case naming style (invalid-name)
+society_dues.py:8:0: W0102: Dangerous default value [] as argument (dangerous-default-value)
+society_dues.py:12:0: C0116: Missing function or method docstring (missing-function-docstring)
+society_dues.py:12:0: R1710: Either all return statements in a function should return an expression, or none of them should. (inconsistent-return-statements)
+society_dues.py:19:0: C0116: Missing function or method docstring (missing-function-docstring)
+society_dues.py:22:11: W0718: Catching too general exception Exception (broad-exception-caught)
+society_dues.py:21:19: W0123: Use of eval (eval-used)
+society_dues.py:27:0: C0116: Missing function or method docstring (missing-function-docstring)
+society_dues.py:29:7: C0121: Comparison 'rows != None' should be 'rows is not None' (singleton-comparison)
+society_dues.py:34:0: C0116: Missing function or method docstring (missing-function-docstring)
+
+-----------------------------------
+Your code has been rated at 5.81/10
+
