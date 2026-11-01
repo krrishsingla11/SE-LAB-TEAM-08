@@ -36,3 +36,8 @@ def login():
         raise AuthError("INVALID_INPUT", "Request body must be valid JSON", 400)
     result = service.login_user(data)
     return jsonify(result), 200
+
+
+from app.auth.reset import register_reset_routes  # noqa: E402
+
+register_reset_routes(bp)
