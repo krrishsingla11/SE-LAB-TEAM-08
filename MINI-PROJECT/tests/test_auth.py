@@ -484,13 +484,35 @@ def test_jwt_missing_token_returns_401(client):
     assert "timestamp" in data
 
 
-@SKIP
-def test_tc_auth_05_rbac_denies_buyer_on_artisan_route():
+def test_tc_auth_05_rbac_denies_buyer_on_artisan_route(client):
     """TC-AUTH-05 (High) - OMH-F-003
-    Steps:    GET /api/seller/dashboard with a Buyer JWT.
+    Steps:    Buyer token calls an Artisan-only route (POST /api/products).
     Expected: HTTP 403; error 'Artisan privilege required'.
     """
-    pass
+    import uuid
+
+    email = f"rbac_{uuid.uuid4().hex[:8]}@pes.edu"
+    password = "StrongP@ss123"
+    payload = {
+        "email": email,
+        "password": password,
+        "full_name": "Rbac Tester",
+        "role": "buyer",
+    }
+    reg = client.post("/api/auth/register", json=payload)
+    assert reg.status_code == 201, reg.get_json()
+
+    login = client.post("/api/auth/login", json={"email": email, "password": password})
+    assert login.status_code == 200, login.get_json()
+    body = login.get_json()
+    token = body.get("token") or body.get("access_token")
+
+    resp = client.post(
+        "/api/products",
+        json={"title": "Silk Scarf", "price": 450.00, "stock_qty": 20},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 403, resp.get_json()
 
 
 @SKIP
