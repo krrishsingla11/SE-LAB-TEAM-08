@@ -12,6 +12,7 @@ Rules (SAD / STP TC-AUTH-05, TC-SEC-04):
     - valid token but the `role` claim is not allowed -> 403
     - the role is read from the `role` claim of the JWT
 """
+from datetime import datetime, timezone
 from functools import wraps
 
 from flask import jsonify
@@ -21,9 +22,14 @@ from jwt.exceptions import PyJWTError
 
 
 def _error(code, message, status):
-    # Keep this in ONE place. If the team's error JSON looks different
-    # (see app/cart/routes.py), change only this function.
-    return jsonify({"error": code, "message": message}), status
+    # Same JSON shape as the AuthError / CartError handlers in the team's code.
+    body = {
+        "error": code,
+        "message": message,
+        "status_code": status,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    return jsonify(body), status
 
 
 def role_required(*allowed_roles):
