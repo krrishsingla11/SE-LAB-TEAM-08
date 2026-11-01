@@ -1,0 +1,22 @@
+************* Module wildlife_sightings
+wildlife_sightings.py:5:0: C0301: Line too long (103/100) (line-too-long)
+wildlife_sightings.py:9:0: C0301: Line too long (117/100) (line-too-long)
+wildlife_sightings.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+wildlife_sightings.py:8:0: C0116: Missing function or method docstring (missing-function-docstring)
+wildlife_sightings.py:8:0: C0103: Function name "logSighting" doesn't conform to snake_case naming style (invalid-name)
+wildlife_sightings.py:8:0: W0102: Dangerous default value {} as argument (dangerous-default-value)
+wildlife_sightings.py:8:16: W0621: Redefining name 'conn' from outer scope (line 4) (redefined-outer-name)
+wildlife_sightings.py:9:17: C0209: Formatting a regular string which could be an f-string (consider-using-f-string)
+wildlife_sightings.py:14:0: C0116: Missing function or method docstring (missing-function-docstring)
+wildlife_sightings.py:14:0: C0103: Function name "observerId" doesn't conform to snake_case naming style (invalid-name)
+wildlife_sightings.py:18:0: C0116: Missing function or method docstring (missing-function-docstring)
+wildlife_sightings.py:18:0: C0103: Function name "zoneSummary" doesn't conform to snake_case naming style (invalid-name)
+wildlife_sightings.py:18:16: W0621: Redefining name 'conn' from outer scope (line 4) (redefined-outer-name)
+wildlife_sightings.py:20:4: R1705: Unnecessary "else" after "return", remove the "else" and de-indent the code inside it (no-else-return)
+wildlife_sightings.py:26:0: C0116: Missing function or method docstring (missing-function-docstring)
+wildlife_sightings.py:26:11: W0621: Redefining name 'conn' from outer scope (line 4) (redefined-outer-name)
+wildlife_sightings.py:32:0: C0116: Missing function or method docstring (missing-function-docstring)
+
+-----------------------------------
+Your code has been rated at 3.46/10
+
