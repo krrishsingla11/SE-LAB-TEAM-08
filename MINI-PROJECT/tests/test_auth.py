@@ -513,22 +513,3 @@ def test_tc_auth_05_rbac_denies_buyer_on_artisan_route(client):
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 403, resp.get_json()
-
-
-@SKIP
-def test_tc_auth_06_password_reset_flow():
-    """TC-AUTH-06 (Medium) - OMH-F-004
-    Steps:    POST /api/auth/reset-password; take token from Mailtrap;
-          POST /api/auth/reset-password/confirm.
-    Expected: HTTP 200; password updated; login with new password works. (SE8-17 stretch)
-    """
-    pass
-
-
-@SKIP
-def test_tc_auth_07_password_reset_expired_token():
-    """TC-AUTH-07 (Medium) - OMH-F-004
-    Steps:    Submit a token older than 15 minutes to /api/auth/reset-password/confirm.
-    Expected: HTTP 400; error 'Reset token has expired'; password unchanged. (SE8-17 stretch)
-    """
-    pass
