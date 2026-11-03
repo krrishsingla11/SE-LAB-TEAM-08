@@ -10,6 +10,7 @@ defaults:
 jobs:
   build-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -19,5 +20,45 @@ jobs:
           cache-dependency-path: MINI-PROJECT/requirements.txt
       - run: pip install -r requirements.txt
       - run: flake8 app tests --max-line-length 100
-      - run: python -m pytest -q
+      # Fast suite only: PostgreSQL integration tests run in the dedicated job below.
+      - run: python -m pytest -q -m "not postgres_integration"
       - run: docker build -t marketplace .
+
+  postgres-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Running inside a container makes the service reachable as test_db:5432.
+    container: python:3.12
+    services:
+      test_db:
+        image: postgres:15
+        env:
+          POSTGRES_DB: marketplace_checkout_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd "pg_isready -U postgres -d marketplace_checkout_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      CI: 'true'
+      CHECKOUT_TEST_DATABASE_URL: postgresql+psycopg2://postgres:postgres@test_db:5432/marketplace_checkout_test
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -r requirements.txt
+      - name: Run PostgreSQL checkout integration tests
+        timeout-minutes: 10
+        run: python -m pytest -m postgres_integration -v -rs --junitxml=pg-integration.xml
+      - name: Verify PostgreSQL integration tests executed (none skipped)
+        run: |
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          root = ET.parse("pg-integration.xml").getroot()
+          suite = root if root.tag == "testsuite" else root.find("testsuite")
+          total = int(suite.get("tests")); skipped = int(suite.get("skipped"))
+          failed = int(suite.get("failures")) + int(suite.get("errors"))
+          print(f"postgres_integration: total={total} skipped={skipped} failed={failed}")
+          assert total >= 3, "expected at least 3 PostgreSQL integration tests"
+          assert skipped == 0 and failed == 0
+          PY

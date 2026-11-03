@@ -1,9 +1,16 @@
-"""Shared test setup (SE8-12 / SE8-14)."""
+"""Shared test setup (SE8-12 / SE8-14 / SE8-29)."""
 import pytest
 from sqlalchemy.pool import StaticPool
 
 from app import create_app
 from app.extensions import db as _db
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "postgres_integration: PostgreSQL-backed checkout and concurrency integration tests",
+    )
 
 
 @pytest.fixture

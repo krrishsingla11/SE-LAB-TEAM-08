@@ -28,5 +28,22 @@ services:
       db:
         condition: service_healthy
 
+  test_db:
+    image: postgres:15
+    profiles: ["test"]
+    ports:
+      - "127.0.0.1:5433:5432"
+    environment:
+      POSTGRES_DB: marketplace_checkout_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d marketplace_checkout_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
 volumes:
   postgres_data:
