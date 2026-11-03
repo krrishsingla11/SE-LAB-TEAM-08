@@ -41,3 +41,8 @@ def login():
 from app.auth.reset import register_reset_routes  # noqa: E402
 
 register_reset_routes(bp)
+
+
+from app.middleware.rate_limit import register_login_rate_limit  # noqa: E402
+
+register_login_rate_limit(bp)
