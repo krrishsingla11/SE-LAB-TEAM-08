@@ -7,11 +7,11 @@ function getToken() {
   return localStorage.getItem("token");
 }
 
-async function apiCall(method, path, body) {
+async function apiCall(method, path, body, extraHeaders) {
   if (USE_MOCK) return mockCall(method, path, body);
 
   const isForm = body instanceof FormData;
-  const headers = isForm ? {} : { "Content-Type": "application/json" };
+  const headers = Object.assign(isForm ? {} : { "Content-Type": "application/json" }, extraHeaders || {});
   const token = getToken();
   if (token) headers["Authorization"] = "Bearer " + token;
 
@@ -155,7 +155,7 @@ function mockCall(method, path, body) {
         } else {
           const total = mockCartView().subtotal;
           mockCartWrite([]);
-          resolve({ order_id: 55, status: "Processing", txn_ref: "TXN-MOCK-OK", total });
+          resolve({ order_id: 55, status: "Processing", payment_status: "captured", total, transaction_ref: "TXN-MOCK-OK", invoice_url: null });
         }
       } else {
         reject(new Error("No mock data for " + method + " " + path));
@@ -177,16 +177,38 @@ const api = {
   cartAdd: (product_id, quantity) => apiCall("POST", "/cart/items", { product_id, quantity }),
   cartUpdate: (product_id, quantity) => apiCall("PUT", `/cart/items/${product_id}`, { quantity }),
   cartRemove: (product_id) => apiCall("DELETE", `/cart/items/${product_id}`),
-  // Uses POST /checkout when the backend has it. Until then (404/405) it charges the
-  // payment stub directly with the cart subtotal: no order is created and the cart is not cleared.
-  checkout: async (shipping_address, payment_token) => {
-    try {
-      return await apiCall("POST", "/checkout", { shipping_address, payment_token });
-    } catch (err) {
-      if (USE_MOCK || (err.status !== 404 && err.status !== 405)) throw err;
-      const cart = await apiCall("GET", "/cart");
-      const pay = await apiCall("POST", "/payments/charge", { amount: cart.subtotal, payment_token });
-      return { status: "Payment " + pay.payment_status, txn_ref: pay.transaction_ref, total: pay.amount };
-    }
-  },
+  // Idempotency-Key makes a retry after a network error safe: the buyer is never charged twice.
+  checkout: (shipping_address, payment_token, idempotencyKey) =>
+    apiCall("POST", "/checkout", { shipping_address, payment_token },
+      idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined),
 };
+
+// Downloads GET /orders/<id>/invoice as a PDF. A plain link cannot send the login token, so we
+// fetch it with the Authorization header and save the result as a file.
+async function downloadInvoice(orderId) {
+  let blob;
+  if (USE_MOCK) {
+    blob = new Blob(["%PDF-1.4\n% mock invoice\n"], { type: "application/pdf" });
+  } else {
+    const headers = {};
+    const token = getToken();
+    if (token) headers["Authorization"] = "Bearer " + token;
+    const res = await fetch(`${BASE_URL}/orders/${orderId}/invoice`, { headers });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      const notReady = res.status === 404 || res.status === 405;
+      throw new Error(data.message || (notReady
+        ? "Your invoice isn't available yet. Please try again in a moment."
+        : "Could not download the invoice. Please try again."));
+    }
+    blob = await res.blob();
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `invoice-${orderId}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}

@@ -24,7 +24,6 @@
     </section>
 
     <div id="error-box" role="alert" class="mt-6 hidden rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800"></div>
-    <div id="success-box" role="status" class="mt-6 hidden rounded border border-green-300 bg-green-50 p-4 text-green-900"></div>
 
     <form id="checkout-form" class="mt-6 space-y-5" novalidate>
       <div>
@@ -51,8 +50,10 @@
     const money = (n) => "₹" + Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const form = document.getElementById("checkout-form");
     const errorBox = document.getElementById("error-box");
-    const successBox = document.getElementById("success-box");
     const btn = document.getElementById("submit-btn");
+    const newKey = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID() : "k" + Date.now() + Math.random());
+    let cartLines = [];
+    let idemKey = newKey();   // reused only when a retry follows a network failure
 
     function esc(s) {
       return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -62,6 +63,7 @@
       try {
         const data = await api.cartGet();
         const lines = data.cart || [];
+        cartLines = lines;
         document.getElementById("summary-lines").innerHTML = lines.length
           ? lines.map((l) => `<li class="flex justify-between"><span>${esc(l.title)} × ${l.quantity}</span><span>${money(l.line_total)}</span></li>`).join("")
           : '<li>Your cart is empty. <a href="catalog.html" class="font-medium text-indigo-800 underline">Browse crafts</a></li>';
@@ -88,18 +90,15 @@
       btn.disabled = true;
       btn.textContent = "Placing order...";
       try {
-        const res = await api.checkout(address, document.getElementById("token").value);
-        form.classList.add("hidden");
-        successBox.innerHTML = '<h2 class="font-serif text-xl font-bold">Order placed</h2>' +
-          '<p class="mt-2 text-sm">' +
-          (res.order_id ? 'Order #' + esc(res.order_id) + '. ' : '') +
-          (res.status ? 'Status: ' + esc(res.status) + '. ' : '') +
-          (res.txn_ref ? 'Payment ref: ' + esc(res.txn_ref) + '.' : '') + '</p>' +
-          '<a href="catalog.html" class="mt-4 inline-block font-medium underline">Keep browsing</a>';
-        successBox.classList.remove("hidden");
-        document.getElementById("summary-lines").innerHTML = "";
-        document.getElementById("total").textContent = money(0);
+        const res = await api.checkout(address, document.getElementById("token").value, idemKey);
+        sessionStorage.setItem("lastOrder", JSON.stringify(Object.assign({}, res, {
+          shipping_address: address,
+          items: cartLines.map((l) => ({ title: l.title, quantity: l.quantity, line_total: l.line_total })),
+        })));
+        window.location.href = "order-confirmation.html";
+        return;
       } catch (err) {
+        if (err.status) idemKey = newKey();   // got a real answer from the server: next attempt is a new order
         errorBox.textContent = err.message;
         errorBox.classList.remove("hidden");
         btn.disabled = false;
