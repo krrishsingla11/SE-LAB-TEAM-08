@@ -6,6 +6,7 @@ from app.checkout.stock import (
     lock_and_validate_stock,
 )
 from app.extensions import db
+from app.invoices import service as invoice_service
 from app.models import Cart, CartItem, Order, OrderItem, Payment, Product
 from app.payment import service as payment_service
 from app.payment.gateway import PaymentError
@@ -92,7 +93,7 @@ def _summary(order, charge):
         "payment_status": "captured",
         "total": float(order.total_amount),
         "transaction_ref": charge["transaction_ref"],
-        "invoice_url": None,  # filled in by the invoice ticket (SE8-34)
+        "invoice_url": f"/api/orders/{order.order_id}/invoice",
     }
 
 
@@ -132,4 +133,8 @@ def checkout(buyer_id, shipping_address, payment_token, idem_key=None):
             "ORDER_FAILED",
             "The order could not be completed. Please try again.", 500,
         ) from err
+    try:
+        invoice_service.create_invoice(order.order_id)
+    except Exception:
+        log.exception("Invoice creation failed for order %s", order.order_id)
     return _summary(order, charge)
