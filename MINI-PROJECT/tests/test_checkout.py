@@ -354,7 +354,7 @@ def test_checkout_success_persists_order_payment_decrements_stock_and_clears_car
     assert body["payment_status"] == "captured"
     assert body["total"] == 1200.0
     assert body["transaction_ref"] == "TXN-MOCK-000001"
-    assert body["invoice_url"] is None
+    assert body["invoice_url"] == "/api/orders/1/invoice"
 
     order = db.session.get(Order, body["order_id"])
     assert order is not None
