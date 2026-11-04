@@ -92,6 +92,8 @@ def create_app(test_config=None):
     db.init_app(app)
     jwt.init_app(app)
     _register_jwt_callbacks(jwt)
+    from app.audit_log import setup_audit_logging
+    setup_audit_logging(app)
 
     @app.errorhandler(RequestEntityTooLarge)
     @app.errorhandler(413)
