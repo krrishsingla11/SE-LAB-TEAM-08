@@ -69,6 +69,10 @@ function mockCartView() {
   return { cart: lines, subtotal: lines.reduce((sum, l) => sum + l.line_total, 0) };
 }
 
+function mockOrdersRead() {
+  try { return JSON.parse(localStorage.getItem("mockOrders")) || []; } catch (e) { return []; }
+}
+
 function mockCall(method, path, body) {
   return new Promise((resolve, reject) => {
     setTimeout(() => {
@@ -113,6 +117,8 @@ function mockCall(method, path, body) {
         } else {
           resolve({ product_id: 200 + Math.floor(Math.random() * 100), message: "Listing created" });
         }
+      } else if (url.pathname === "/orders" && method === "GET") {
+        resolve({ orders: mockOrdersRead().slice().reverse() });
       } else if (url.pathname === "/cart" && method === "GET") {
         resolve(mockCartView());
       } else if (path === "/cart/items" && method === "POST") {
@@ -153,9 +159,17 @@ function mockCall(method, path, body) {
         } else if (!mockCartRead().length) {
           reject(new Error("Your cart is empty"));
         } else {
-          const total = mockCartView().subtotal;
+          const view = mockCartView();
+          const orders = mockOrdersRead();
+          const order_id = 55 + orders.length;
+          orders.push({
+            order_id, status: "Processing", total: view.subtotal, shipping_address: body.shipping_address,
+            created_at: new Date().toISOString(), invoice_url: `/api/orders/${order_id}/invoice`,
+            items: view.cart.map((l) => ({ product_id: l.product_id, title: l.title, quantity: l.quantity, unit_price: l.unit_price })),
+          });
+          localStorage.setItem("mockOrders", JSON.stringify(orders));
           mockCartWrite([]);
-          resolve({ order_id: 55, status: "Processing", payment_status: "captured", total, transaction_ref: "TXN-MOCK-OK", invoice_url: null });
+          resolve({ order_id, status: "Processing", payment_status: "captured", total: view.subtotal, transaction_ref: "TXN-MOCK-OK", invoice_url: `/api/orders/${order_id}/invoice` });
         }
       } else {
         reject(new Error("No mock data for " + method + " " + path));
@@ -173,6 +187,7 @@ const api = {
     apiCall("GET", `/products?q=${encodeURIComponent(q)}&category=${categoryId}&page=${page}&per_page=${perPage}`),
   product: (id) => apiCall("GET", `/products/${id}`),
   createProduct: (data) => apiCall("POST", "/products", data),
+  orders: () => apiCall("GET", "/orders"), // {orders: [{order_id, status, total, shipping_address, created_at, invoice_url, items}]}
   cartGet: () => apiCall("GET", "/cart"),
   cartAdd: (product_id, quantity) => apiCall("POST", "/cart/items", { product_id, quantity }),
   cartUpdate: (product_id, quantity) => apiCall("PUT", `/cart/items/${product_id}`, { quantity }),

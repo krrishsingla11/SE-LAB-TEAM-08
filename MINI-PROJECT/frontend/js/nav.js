@@ -8,8 +8,13 @@
   const role = localStorage.getItem("role");
   const cls = "text-indigo-800 underline hover:text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-700 rounded";
 
-  const items = [["catalog.html", "Browse"], ["cart.html", "Cart"]];
-  if (role === "artisan") items.push(["artisan-listings.html", "Sell"]);
+  const items = [["catalog.html", "Browse"]];
+  if (role === "artisan") {
+    items.push(["artisan-listings.html", "Sell"]);           // artisans do not use the buyer's cart or orders
+  } else {
+    items.push(["cart.html", "Cart"]);
+    if (loggedIn) items.push(["orders.html", "My orders"]);
+  }
   if (!loggedIn) items.push(["login.html", "Log in"], ["register.html", "Create account"]);
 
   nav.className = "flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-medium";
