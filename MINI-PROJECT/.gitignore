@@ -4,5 +4,5 @@ __pycache__/
 .venv/
 instance/
 node_modules/
-invoices/
+/invoices/
 uploads/

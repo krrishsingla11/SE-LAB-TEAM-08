@@ -9,6 +9,7 @@ from werkzeug.exceptions import RequestEntityTooLarge
 
 from app.extensions import db, jwt
 from app.checkout import checkout_bp
+from app.invoices import invoice_bp
 
 # Ensure WebP MIME type is registered consistently across platforms.
 mimetypes.add_type("image/webp", ".webp")
@@ -134,6 +135,7 @@ def create_app(test_config=None):
     app.register_blueprint(auth_bp)
     app.register_blueprint(payment_bp)
     app.register_blueprint(checkout_bp)
+    app.register_blueprint(invoice_bp)
 
     @app.get("/api/health")
     def health():
