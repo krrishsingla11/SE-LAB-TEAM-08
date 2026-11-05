@@ -10,7 +10,7 @@
 
   const items = [["catalog.html", "Browse"]];
   if (role === "artisan") {
-    items.push(["artisan-listings.html", "Sell"]);           // artisans do not use the buyer's cart or orders
+    items.push(["dashboard.html", "Dashboard"], ["artisan-listings.html", "Sell"]);   // artisans do not use the buyer's cart or orders
   } else {
     items.push(["cart.html", "Cart"]);
     if (loggedIn) items.push(["orders.html", "My orders"]);
