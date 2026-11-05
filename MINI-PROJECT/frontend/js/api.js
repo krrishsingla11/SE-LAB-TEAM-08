@@ -187,6 +187,11 @@ const api = {
     apiCall("GET", `/products?q=${encodeURIComponent(q)}&category=${categoryId}&page=${page}&per_page=${perPage}`),
   product: (id) => apiCall("GET", `/products/${id}`),
   createProduct: (data) => apiCall("POST", "/products", data),
+  // --- Artisan dashboard (SE8-40). Paths from the SRS/STP; response shapes are ASSUMED until the backend merges.
+  sellerOrders: () => apiCall("GET", "/seller/orders"),       // {orders: [{order_id, status, created_at, shipping_address, total, items: [{title, quantity, unit_price}]}]}
+  sellerDashboard: () => apiCall("GET", "/seller/dashboard"), // {low_stock: [{product_id, title, stock_quantity, threshold}]}
+  updateOrderStatus: (id, status) => apiCall("PUT", `/orders/${id}/status`, { status }), // Pending > Processing > Shipped > Delivered
+  salesReport: (period = "monthly") => apiCall("GET", `/reports/sales?period=${period}`), // {revenue, order_count, units_sold, top_items: [{title, units, revenue}]}
   orders: () => apiCall("GET", "/orders"), // {orders: [{order_id, status, total, shipping_address, created_at, invoice_url, items}]}
   cartGet: () => apiCall("GET", "/cart"),
   cartAdd: (product_id, quantity) => apiCall("POST", "/cart/items", { product_id, quantity }),
@@ -198,32 +203,38 @@ const api = {
       idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined),
 };
 
-// Downloads GET /orders/<id>/invoice as a PDF. A plain link cannot send the login token, so we
+// Downloads a file from a protected endpoint. A plain link cannot send the login token, so we
 // fetch it with the Authorization header and save the result as a file.
-async function downloadInvoice(orderId) {
+async function downloadFile(path, filename, mockBody) {
   let blob;
   if (USE_MOCK) {
-    blob = new Blob(["%PDF-1.4\n% mock invoice\n"], { type: "application/pdf" });
+    blob = new Blob([mockBody || "mock file"], { type: "application/octet-stream" });
   } else {
     const headers = {};
     const token = getToken();
     if (token) headers["Authorization"] = "Bearer " + token;
-    const res = await fetch(`${BASE_URL}/orders/${orderId}/invoice`, { headers });
+    const res = await fetch(BASE_URL + path, { headers });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       const notReady = res.status === 404 || res.status === 405;
       throw new Error(data.message || (notReady
-        ? "Your invoice isn't available yet. Please try again in a moment."
-        : "Could not download the invoice. Please try again."));
+        ? "This download isn't available yet. Please try again later."
+        : "Could not download the file. Please try again."));
     }
     blob = await res.blob();
   }
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `invoice-${orderId}.pdf`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+const downloadInvoice = (orderId) =>
+  downloadFile(`/orders/${orderId}/invoice`, `invoice-${orderId}.pdf`, "%PDF-1.4\n% mock invoice\n");
+
+const downloadReport = (format) =>
+  downloadFile(`/reports/export?format=${format}`, `sales-report.${format}`, "mock report");
