@@ -28,7 +28,7 @@
     <form id="checkout-form" class="mt-6 space-y-5" novalidate>
       <div>
         <label for="address" class="block text-sm font-medium">Shipping address</label>
-        <textarea id="address" rows="3" required class="mt-1 w-full rounded border border-slate-400 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-700"></textarea>
+        <textarea id="address" rows="3" required class="mt-1 w-full rounded border border-slate-400 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-700" aria-describedby="address-error"></textarea>
         <p id="address-error" class="mt-1 hidden text-sm text-red-700"></p>
       </div>
       <div>
@@ -83,6 +83,7 @@
       if (address.length < 10) {
         errEl.textContent = "Enter your full shipping address (at least 10 characters).";
         errEl.classList.remove("hidden");
+        document.getElementById("address").focus();
         return;
       }
       errEl.classList.add("hidden");

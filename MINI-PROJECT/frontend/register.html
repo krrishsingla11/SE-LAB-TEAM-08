@@ -25,18 +25,18 @@
       <div>
         <label for="full_name" class="block text-sm font-medium">Full name</label>
         <input id="full_name" type="text" autocomplete="name" required
-          class="mt-1 w-full rounded border border-slate-400 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-700">
+          class="mt-1 w-full rounded border border-slate-400 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-700" aria-describedby="full_name-error">
         <p id="full_name-error" class="mt-1 hidden text-sm text-red-700"></p>
       </div>
       <div>
         <label for="email" class="block text-sm font-medium">Email</label>
         <input id="email" type="email" autocomplete="email" required
-          class="mt-1 w-full rounded border border-slate-400 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-700">
+          class="mt-1 w-full rounded border border-slate-400 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-700" aria-describedby="email-error">
         <p id="email-error" class="mt-1 hidden text-sm text-red-700"></p>
       </div>
       <div>
         <label for="password" class="block text-sm font-medium">Password</label>
-        <input id="password" type="password" autocomplete="new-password" required aria-describedby="pw-hint"
+        <input id="password" type="password" autocomplete="new-password" required aria-describedby="pw-hint password-error"
           class="mt-1 w-full rounded border border-slate-400 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-700">
         <p id="pw-hint" class="mt-1 text-xs text-slate-600">At least 8 characters with an uppercase letter, a lowercase letter and a number.</p>
         <p id="password-error" class="mt-1 hidden text-sm text-red-700"></p>
@@ -44,7 +44,7 @@
       <div>
         <label for="role" class="block text-sm font-medium">I want to</label>
         <select id="role" required
-          class="mt-1 w-full rounded border border-slate-400 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-700">
+          class="mt-1 w-full rounded border border-slate-400 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-700" aria-describedby="role-error">
           <option value="">Choose one</option>
           <option value="buyer">Buy handmade goods</option>
           <option value="artisan">Sell my crafts</option>
@@ -100,7 +100,7 @@
 
       if (!role) { setFieldError("role", "Choose whether you want to buy or sell."); ok = false; }
       else setFieldError("role", "");
-      if (!ok) return;
+      if (!ok) { const bad = form.querySelector('[aria-invalid="true"]'); if (bad) bad.focus(); return; }
 
       btn.disabled = true;
       btn.textContent = "Creating account...";
