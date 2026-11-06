@@ -175,7 +175,7 @@ class Payment(db.Model):
         unique=True,
         nullable=False,
     )
-    transaction_ref = db.Column(db.String(100))
+    transaction_ref = db.Column(db.String(100), unique=True)
     amount = db.Column(db.Numeric(10, 2), nullable=False)
     payment_status = db.Column(
         db.Enum(
@@ -204,4 +204,59 @@ class Invoice(db.Model):
     file_path = db.Column(db.String(255), nullable=False)
     issued_at = db.Column(
         db.DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+
+class PaymentAttempt(db.Model):
+    __tablename__ = "payment_attempts"
+
+    attempt_id = db.Column(db.Integer, primary_key=True)
+    buyer_id = db.Column(
+        db.Integer, db.ForeignKey("users.user_id"), nullable=False, index=True
+    )
+    cart_id = db.Column(
+        db.Integer, db.ForeignKey("carts.cart_id"), nullable=False, index=True
+    )
+    amount = db.Column(db.Numeric(10, 2), nullable=False)
+    currency = db.Column(db.String(3), nullable=False, default="INR")
+    cart_hash = db.Column(db.String(64), nullable=False)
+    razorpay_order_id = db.Column(
+        db.String(100), unique=True, nullable=False
+    )
+    razorpay_payment_id = db.Column(db.String(100), nullable=True, index=True)
+    status = db.Column(
+        db.Enum(
+            "created",
+            "callback_received",
+            "completed",
+            "refund_pending",
+            "refunded",
+            "refund_failed",
+            "partial_refunded",
+            "manual_review",
+            name="payment_attempt_status",
+        ),
+        nullable=False,
+        default="created",
+        index=True,
+    )
+    refund_idempotency_key = db.Column(
+        db.String(100), unique=True, nullable=True
+    )
+    refund_ref = db.Column(db.String(100), nullable=True)
+    failure_reason = db.Column(db.Text, nullable=True)
+    retry_count = db.Column(db.Integer, nullable=False, default=0)
+    unrefunded_amount = db.Column(db.Numeric(10, 2), nullable=True)
+    created_at = db.Column(
+        db.DateTime(timezone=True), nullable=False, default=utc_now
+    )
+    updated_at = db.Column(
+        db.DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+    __table_args__ = (
+        db.Index("ix_payment_attempts_cart_hash_status", "cart_id", "cart_hash", "status"),
     )

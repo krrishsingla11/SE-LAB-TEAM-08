@@ -36,6 +36,9 @@ def place_order():
         data.get("shipping_address"),
         data.get("payment_token"),
         request.headers.get("Idempotency-Key"),
+        razorpay_order_id=data.get("razorpay_order_id"),
+        razorpay_payment_id=data.get("razorpay_payment_id"),
+        razorpay_signature=data.get("razorpay_signature"),
     )
     return jsonify(result), 201
 
