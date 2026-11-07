@@ -10,12 +10,22 @@ class CartError(Exception):
         self.status = status
 
 
-def _cart(buyer_id):
-    cart = db.session.scalar(db.select(Cart).where(Cart.buyer_id == buyer_id))
+def _cart(buyer_id, for_update=False):
+    stmt = db.select(Cart).where(Cart.buyer_id == buyer_id)
+    if for_update:
+        stmt = stmt.with_for_update()
+    cart = db.session.scalar(stmt)
     if cart is None:
-        cart = Cart(buyer_id=buyer_id)
-        db.session.add(cart)
-        db.session.flush()
+        try:
+            with db.session.begin_nested():
+                cart = Cart(buyer_id=buyer_id)
+                db.session.add(cart)
+                db.session.flush()
+        except Exception:
+            stmt = db.select(Cart).where(Cart.buyer_id == buyer_id)
+            if for_update:
+                stmt = stmt.with_for_update()
+            cart = db.session.scalar(stmt)
     return cart
 
 
@@ -45,10 +55,14 @@ def _check(product_id, qty):
     return product
 
 
-def _item(cart, product_id):
-    return db.session.scalar(db.select(CartItem).where(
+def _item(cart, product_id, for_update=False):
+    stmt = db.select(CartItem).where(
         CartItem.cart_id == cart.cart_id,
-        CartItem.product_id == product_id))
+        CartItem.product_id == product_id
+    )
+    if for_update:
+        stmt = stmt.with_for_update()
+    return db.session.scalar(stmt)
 
 
 def get_cart(buyer_id):
@@ -75,8 +89,8 @@ def get_cart(buyer_id):
 
 def add_item(buyer_id, product_id, qty):
     _valid_qty(qty)
-    cart = _cart(buyer_id)
-    item = _item(cart, product_id)
+    cart = _cart(buyer_id, for_update=True)
+    item = _item(cart, product_id, for_update=True)
     new_qty = qty + (item.quantity if item else 0)
     product = _check(product_id, new_qty)
     if item:
@@ -90,8 +104,8 @@ def add_item(buyer_id, product_id, qty):
 
 
 def update_qty(buyer_id, product_id, qty):
-    cart = _cart(buyer_id)
-    item = _item(cart, product_id)
+    cart = _cart(buyer_id, for_update=True)
+    item = _item(cart, product_id, for_update=True)
     if item is None:
         raise CartError("NOT_FOUND", "Item not in cart", 404)
     _check(product_id, qty)
@@ -101,8 +115,8 @@ def update_qty(buyer_id, product_id, qty):
 
 
 def remove_item(buyer_id, product_id):
-    cart = _cart(buyer_id)
-    item = _item(cart, product_id)
+    cart = _cart(buyer_id, for_update=True)
+    item = _item(cart, product_id, for_update=True)
     if item:
         db.session.delete(item)
         db.session.commit()
@@ -110,7 +124,7 @@ def remove_item(buyer_id, product_id):
 
 
 def clear_cart(buyer_id):
-    cart = _cart(buyer_id)
+    cart = _cart(buyer_id, for_update=True)
     items = db.session.scalars(
         db.select(CartItem).where(CartItem.cart_id == cart.cart_id))
     for item in items:
