@@ -53,7 +53,7 @@
 
       box.innerHTML = `
         <div>${imgs}</div>
-        <div>
+        <div class="mt-6 md:mt-0">
           <h1 class="font-serif text-3xl font-bold text-indigo-900">${esc(p.title)}</h1>
           <p class="mt-1 text-slate-700">by ${esc(p.artisan_name || "Artisan #" + p.artisan_id)}</p>
           <p class="mt-4 text-2xl font-medium">₹${Number(p.price).toLocaleString("en-IN")}</p>

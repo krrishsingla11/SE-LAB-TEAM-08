@@ -3,6 +3,19 @@
   const nav = document.getElementById("site-nav");
   if (!nav) return;
 
+  // Skip link: lets keyboard users jump past the menu to the page content
+  const main = document.querySelector("main");
+  if (main) {
+    main.id = main.id || "main";
+    main.tabIndex = -1;
+    main.classList.add("focus:outline-none");
+    const skip = document.createElement("a");
+    skip.href = "#" + main.id;
+    skip.className = "skip-link sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded focus:bg-indigo-900 focus:px-4 focus:py-2 focus:text-white";
+    skip.textContent = "Skip to main content";
+    document.body.insertBefore(skip, document.body.firstChild);
+  }
+
   const here = location.pathname.split("/").pop() || "index.html";
   const loggedIn = !!localStorage.getItem("token");
   const role = localStorage.getItem("role");
