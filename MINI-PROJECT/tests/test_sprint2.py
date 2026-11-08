@@ -157,7 +157,6 @@ def test_order_history_requires_authentication(client):
 
 
 # ----------------------------------- not built yet (xfail until implemented)
-@NOT_BUILT
 def test_tc_ord_02_artisan_progresses_order_status(client, completed_order):
     """TC-ORD-02 (High) - OMH-F-013
     Steps:    Artisan sends PUT /api/orders/{id}/status Shipped, then Delivered.
