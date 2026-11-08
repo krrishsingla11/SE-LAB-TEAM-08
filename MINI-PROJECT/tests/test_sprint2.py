@@ -1,7 +1,7 @@
 """Sprint 2 tests (SE8-44): PDF invoices, order history and the not-yet-built features.
 
-Working tests : TC-INV-03, TC-INV-04, invoice access rules, order history.
-Expected fail : TC-ORD-02, TC-INV-02, TC-RPT-01, TC-RPT-02. These routes are not in
+Working tests : TC-INV-03, TC-INV-04, TC-RPT-01, invoice access rules, order history.
+Expected fail : TC-ORD-02, TC-INV-02, TC-RPT-02. These routes are not in
                 the app yet (found 7 Nov), so the tests are marked xfail. When the
                 feature is built the test passes and pytest reports it as XPASS.
 Already covered by teammates: TC-ORD-01 (test_checkout.py), TC-INV-01 (PostgreSQL only).
@@ -188,7 +188,6 @@ def test_tc_inv_02_low_stock_alert_on_dashboard(client):
     assert "low" in resp.get_data(as_text=True).lower()
 
 
-@NOT_BUILT
 def test_tc_rpt_01_monthly_sales_report(client, completed_order):
     """TC-RPT-01 (High) - OMH-F-019
     Steps:    After one completed order (450.00), GET /api/reports/sales?period=monthly.

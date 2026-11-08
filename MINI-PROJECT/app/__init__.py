@@ -131,6 +131,7 @@ def create_app(test_config=None):
     from app.search import catalog_bp
     from app.auth import auth_bp
     from app.payment import payment_bp
+    from app.reports import reports_bp
 
     app.register_blueprint(cart_bp)
     app.register_blueprint(catalog_bp)
@@ -138,6 +139,7 @@ def create_app(test_config=None):
     app.register_blueprint(payment_bp)
     app.register_blueprint(checkout_bp)
     app.register_blueprint(invoice_bp)
+    app.register_blueprint(reports_bp)
 
     @app.get("/api/health")
     def health():

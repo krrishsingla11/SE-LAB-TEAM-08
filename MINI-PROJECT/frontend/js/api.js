@@ -153,6 +153,20 @@ function mockCall(method, path, body) {
         const id = parseInt(url.pathname.split("/")[3], 10);
         mockCartWrite(mockCartRead().filter((i) => i.product_id !== id));
         resolve(mockCartView());
+      } else if (url.pathname === "/reports/sales" && method === "GET") {
+        resolve({
+          revenue: 12450.0,
+          gross_revenue: 12450.0,
+          order_count: 9,
+          units_sold: 21,
+          units: 21,
+          top_items: [
+            { product_id: 107, title: "Painted Clay Vase", units_sold: 8, units: 8, revenue: 4480.0 },
+            { product_id: 103, title: "Handwoven Cotton Scarf", units_sold: 6, units: 6, revenue: 7200.0 },
+            { product_id: 108, title: "Brass Diya Lamp", units_sold: 4, units: 4, revenue: 2880.0 },
+          ],
+          period: url.searchParams.get("period") || "monthly",
+        });
       } else if (path === "/checkout" && method === "POST") {
         if (body.payment_token === "tok_charge_declined") {
           reject(new Error("Card declined"));
@@ -191,7 +205,12 @@ const api = {
   sellerOrders: () => apiCall("GET", "/seller/orders"),       // {orders: [{order_id, status, created_at, shipping_address, total, items: [{title, quantity, unit_price}]}]}
   sellerDashboard: () => apiCall("GET", "/seller/dashboard"), // {low_stock: [{product_id, title, stock_quantity, threshold}]}
   updateOrderStatus: (id, status) => apiCall("PUT", `/orders/${id}/status`, { status }), // Pending > Processing > Shipped > Delivered
-  salesReport: (period = "monthly") => apiCall("GET", `/reports/sales?period=${period}`), // {revenue, order_count, units_sold, top_items: [{title, units, revenue}]}
+  salesReport: (period = "monthly", startDate = "", endDate = "") => {
+    let q = `?period=${encodeURIComponent(period)}`;
+    if (startDate) q += `&start_date=${encodeURIComponent(startDate)}`;
+    if (endDate) q += `&end_date=${encodeURIComponent(endDate)}`;
+    return apiCall("GET", `/reports/sales${q}`);
+  }, // {revenue, order_count, units_sold, top_items: [{title, units, revenue}]}
   orders: () => apiCall("GET", "/orders"), // {orders: [{order_id, status, total, shipping_address, created_at, invoice_url, items}]}
   cartGet: () => apiCall("GET", "/cart"),
   cartAdd: (product_id, quantity) => apiCall("POST", "/cart/items", { product_id, quantity }),
