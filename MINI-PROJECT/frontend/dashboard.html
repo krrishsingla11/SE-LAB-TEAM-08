@@ -21,7 +21,30 @@
     </div>
 
     <section aria-labelledby="sales-h" class="mt-6">
-      <h2 id="sales-h" class="font-serif text-xl font-bold text-indigo-900">Sales this month</h2>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <h2 id="sales-h" class="font-serif text-xl font-bold text-indigo-900">Sales analytics</h2>
+        <div class="flex flex-wrap items-center gap-2">
+          <label for="sales-period" class="text-sm font-medium text-slate-700">Period:</label>
+          <select id="sales-period" aria-label="Select sales reporting period"
+            class="rounded border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-700">
+            <option value="monthly" selected>This month</option>
+            <option value="weekly">This week</option>
+            <option value="yearly">This year</option>
+            <option value="all">All time</option>
+            <option value="custom">Custom date range</option>
+          </select>
+        </div>
+      </div>
+      <div id="custom-range" class="mt-3 hidden flex-wrap items-center gap-2">
+        <label for="sales-start" class="text-sm font-medium text-slate-700">From:</label>
+        <input type="date" id="sales-start" aria-label="Start date"
+          class="rounded border border-stone-300 bg-white px-2 py-1 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-700">
+        <label for="sales-end" class="text-sm font-medium text-slate-700">To:</label>
+        <input type="date" id="sales-end" aria-label="End date"
+          class="rounded border border-stone-300 bg-white px-2 py-1 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-700">
+        <button type="button" id="apply-dates"
+          class="rounded bg-indigo-900 px-3 py-1 text-sm font-medium text-white hover:bg-indigo-800 focus:outline-none focus:ring-2 focus:ring-indigo-700">Apply</button>
+      </div>
       <p id="sales-msg" class="mt-2 text-slate-700" role="status">Loading sales...</p>
       <div id="kpis" class="mt-3 grid gap-4 sm:grid-cols-3"></div>
       <div id="top-wrap" class="mt-4 hidden">
@@ -83,24 +106,52 @@
       { product_id: 2, title: "Silk Scarf", stock_quantity: 1, threshold: 5 }, { product_id: 7, title: "Brass Diya Lamp", stock_quantity: 4, threshold: 5 } ] };
 
     // ----- sales -----
-    async function loadSales() {
+    async function loadSales(period = "monthly", startDate = "", endDate = "") {
       try {
-        const d = SAMPLE ? sampleSales : await api.salesReport("monthly");
+        $("sales-msg").textContent = "Loading sales...";
+        const d = SAMPLE ? sampleSales : await api.salesReport(period, startDate, endDate);
         const revenue = d.revenue ?? d.gross_revenue ?? 0;
         const units = d.units_sold ?? d.units ?? 0;
-        $("sales-msg").textContent = "";
-        $("kpis").innerHTML = [["Revenue", money(revenue)], ["Orders", d.order_count ?? 0], ["Units sold", units]]
+        const orders = d.order_count ?? 0;
+        $("sales-msg").textContent = orders === 0 ? "No completed sales recorded for this period." : "";
+        $("kpis").innerHTML = [["Revenue", money(revenue)], ["Orders", orders], ["Units sold", units]]
           .map(([label, value]) => `<div class="rounded border border-stone-300 bg-white p-4"><p class="text-sm text-slate-700">${label}</p><p class="mt-1 font-serif text-2xl font-bold text-indigo-900">${esc(value)}</p></div>`).join("");
         const top = d.top_items || d.items || [];
         if (top.length) {
           $("top-items").innerHTML = top.map((t) =>
             `<li>${esc(t.title || t.name)}: ${t.units ?? t.units_sold ?? t.quantity ?? 0} sold${t.revenue != null ? ", " + money(t.revenue) : ""}</li>`).join("");
           $("top-wrap").classList.remove("hidden");
+        } else {
+          $("top-wrap").classList.add("hidden");
         }
       } catch (err) {
+        $("kpis").innerHTML = "";
+        $("top-wrap").classList.add("hidden");
         $("sales-msg").innerHTML = esc(notReady(err) ? "Sales reports aren't available on the server yet." : err.message) + (notReady(err) ? hint : "");
       }
     }
+
+    $("sales-period").addEventListener("change", (e) => {
+      const val = e.target.value;
+      if (val === "custom") {
+        $("custom-range").classList.remove("hidden");
+        $("custom-range").classList.add("flex");
+      } else {
+        $("custom-range").classList.add("hidden");
+        $("custom-range").classList.remove("flex");
+        loadSales(val);
+      }
+    });
+
+    $("apply-dates").addEventListener("click", () => {
+      const start = $("sales-start").value;
+      const end = $("sales-end").value;
+      if (!start && !end) {
+        $("sales-msg").textContent = "Please select a start or end date.";
+        return;
+      }
+      loadSales("custom", start, end);
+    });
 
     // ----- low stock -----
     async function loadStock() {
