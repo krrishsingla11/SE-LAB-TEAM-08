@@ -38,7 +38,7 @@ def validate_product_input(data, files):
     """Validate product input fields and uploaded images (OMH-F-005).
 
     Returns:
-        tuple: (title, desc, category_id, price, stock_qty, valid_files)
+        tuple: (title, desc, category_id, price, stock_qty, parsed_threshold, valid_files)
     Raises:
         SearchError: HTTP 422 if any validation constraints are violated.
     """
@@ -147,7 +147,42 @@ def validate_product_input(data, files):
             errors.append("Stock quantity must be a non-negative whole number")
             parsed_stock = None
 
-    # 6. Reject arbitrary user-provided image URLs in JSON
+    # 6. Low-stock threshold validation (optional non-negative integer >= 0, default: 5)
+    # Canonical key is "low_stock_threshold"; "threshold" is a backward-compatible alias.
+    if "low_stock_threshold" in data:
+        thresh_raw = data["low_stock_threshold"]
+    elif "threshold" in data:
+        thresh_raw = data["threshold"]
+    else:
+        thresh_raw = None
+
+    if thresh_raw is None or thresh_raw == "":
+        parsed_thresh = 5
+    elif isinstance(thresh_raw, bool):
+        errors.append("Low-stock threshold must be a non-negative whole number")
+        parsed_thresh = None
+    else:
+        try:
+            if isinstance(thresh_raw, float):
+                raise ValueError
+            if isinstance(thresh_raw, str):
+                s = thresh_raw.strip()
+                if not re.match(r"^-?\d+$", s):
+                    raise ValueError
+                parsed_thresh = int(s)
+            elif isinstance(thresh_raw, int):
+                parsed_thresh = thresh_raw
+            else:
+                raise ValueError
+
+            if parsed_thresh < 0:
+                errors.append("Low-stock threshold cannot be negative")
+                parsed_thresh = None
+        except (ValueError, TypeError):
+            errors.append("Low-stock threshold must be a non-negative whole number")
+            parsed_thresh = None
+
+    # 7. Reject arbitrary user-provided image URLs in JSON
     if "images" in data and isinstance(data["images"], list) and len(data["images"]) > 0:
         errors.append(
             "Image URLs in JSON body are not supported. Upload images via multipart/form-data."
@@ -205,7 +240,10 @@ def validate_product_input(data, files):
     if errors:
         raise SearchError("VALIDATION_ERROR", "; ".join(errors), 422, errors=errors)
 
-    return parsed_title, parsed_desc, parsed_cat_id, parsed_price, parsed_stock, valid_files
+    return (
+        parsed_title, parsed_desc, parsed_cat_id, parsed_price,
+        parsed_stock, parsed_thresh, valid_files
+    )
 
 
 def create_product(user_id: int, data: dict, files=None) -> dict:
@@ -219,7 +257,10 @@ def create_product(user_id: int, data: dict, files=None) -> dict:
     Returns:
         dict: Created product summary with product_id.
     """
-    title, desc, category_id, price, stock_qty, valid_files = validate_product_input(data, files)
+    (
+        title, desc, category_id, price, stock_qty,
+        parsed_thresh, valid_files
+    ) = validate_product_input(data, files)
 
     artisan = db.session.scalar(
         db.select(Artisan).where(Artisan.user_id == user_id)
@@ -269,7 +310,7 @@ def create_product(user_id: int, data: dict, files=None) -> dict:
         inv = Inventory(
             product_id=product.product_id,
             stock_quantity=stock_qty,
-            low_stock_threshold=5,
+            low_stock_threshold=parsed_thresh,
         )
         db.session.add(inv)
 
@@ -289,6 +330,7 @@ def create_product(user_id: int, data: dict, files=None) -> dict:
         "title": product.title,
         "price": float(product.price),
         "stock_quantity": inv.stock_quantity,
+        "low_stock_threshold": inv.low_stock_threshold,
         "category_id": product.category_id,
         "artisan_id": product.artisan_id,
         "is_active": product.is_active,
@@ -302,6 +344,8 @@ ALLOWED_UPDATE_FIELDS = {
     "desc",
     "stock_qty",
     "stock_quantity",
+    "low_stock_threshold",
+    "threshold",
 }
 
 
@@ -314,7 +358,7 @@ def validate_product_update_input(data: dict):
         - stock_qty / stock_quantity (non-negative integer >= 0)
 
     Returns:
-        tuple: (parsed_price, parsed_desc, parsed_stock)
+        tuple: (parsed_price, parsed_desc, parsed_stock, parsed_threshold)
 
     Raises:
         SearchError: HTTP 400 if data is empty.
@@ -397,10 +441,43 @@ def validate_product_update_input(data: dict):
             except (ValueError, TypeError):
                 errors.append("Stock quantity must be a non-negative whole number")
 
+    parsed_threshold = None
+    if "low_stock_threshold" in data:
+        thresh_raw = data["low_stock_threshold"]
+        has_thresh = True
+    elif "threshold" in data:
+        thresh_raw = data["threshold"]
+        has_thresh = True
+    else:
+        thresh_raw = None
+        has_thresh = False
+
+    if has_thresh:
+        if thresh_raw is None or isinstance(thresh_raw, bool) or thresh_raw == "":
+            errors.append("Low-stock threshold must be a non-negative whole number")
+        else:
+            try:
+                if isinstance(thresh_raw, float):
+                    raise ValueError
+                if isinstance(thresh_raw, str):
+                    s = thresh_raw.strip()
+                    if not re.match(r"^-?\d+$", s):
+                        raise ValueError
+                    parsed_threshold = int(s)
+                elif isinstance(thresh_raw, int):
+                    parsed_threshold = thresh_raw
+                else:
+                    raise ValueError
+
+                if parsed_threshold < 0:
+                    errors.append("Low-stock threshold cannot be negative")
+            except (ValueError, TypeError):
+                errors.append("Low-stock threshold must be a non-negative whole number")
+
     if errors:
         raise SearchError("VALIDATION_ERROR", "; ".join(errors), 422, errors=errors)
 
-    return parsed_price, parsed_desc, parsed_stock
+    return parsed_price, parsed_desc, parsed_stock, parsed_threshold
 
 
 def update_product(user_id: int, product_id: int, data: dict) -> dict:
@@ -414,7 +491,7 @@ def update_product(user_id: int, product_id: int, data: dict) -> dict:
     Returns:
         dict: Updated product summary.
     """
-    parsed_price, parsed_desc, parsed_stock = validate_product_update_input(data)
+    parsed_price, parsed_desc, parsed_stock, parsed_threshold = validate_product_update_input(data)
 
     product = db.session.get(Product, product_id)
     if product is None or not product.is_active:
@@ -456,6 +533,16 @@ def update_product(user_id: int, product_id: int, data: dict) -> dict:
                 db.session.add(inv)
             else:
                 inv.stock_quantity = parsed_stock
+        if parsed_threshold is not None:
+            if inv is None:
+                inv = Inventory(
+                    product_id=product.product_id,
+                    stock_quantity=0,
+                    low_stock_threshold=parsed_threshold,
+                )
+                db.session.add(inv)
+            else:
+                inv.low_stock_threshold = parsed_threshold
 
         db.session.commit()
     except Exception:
@@ -468,6 +555,7 @@ def update_product(user_id: int, product_id: int, data: dict) -> dict:
         "description": product.description,
         "price": float(product.price),
         "stock_quantity": inv.stock_quantity if inv is not None else 0,
+        "low_stock_threshold": inv.low_stock_threshold if inv is not None else 5,
         "category_id": product.category_id,
         "artisan_id": product.artisan_id,
         "is_active": product.is_active,
