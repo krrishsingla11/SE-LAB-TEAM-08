@@ -173,7 +173,6 @@ def test_tc_ord_02_artisan_progresses_order_status(client, completed_order):
     assert "Delivered" in history.get_data(as_text=True)
 
 
-@NOT_BUILT
 def test_tc_inv_02_low_stock_alert_on_dashboard(client):
     """TC-INV-02 (Medium) - OMH-F-016
     Steps:    Stock 6, threshold 5; buy 1 unit; GET /api/seller/dashboard as the artisan.

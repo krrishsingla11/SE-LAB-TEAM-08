@@ -52,6 +52,11 @@
         </div>
       </div>
       <div>
+        <label for="low_stock_threshold" class="block text-sm font-medium">Low-stock alert threshold (optional, default: 5)</label>
+        <input id="low_stock_threshold" type="number" step="1" min="0" placeholder="5" inputmode="numeric" class="mt-1 w-full rounded border border-slate-400 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-700" aria-describedby="low_stock_threshold-error">
+        <p id="low_stock_threshold-error" class="mt-1 hidden text-sm text-red-700"></p>
+      </div>
+      <div>
         <label for="images" class="block text-sm font-medium">Photos (up to 5, JPG, PNG or WebP, 5 MB each)</label>
         <input id="images" type="file" accept="image/jpeg,image/png,image/webp" multiple class="mt-1 block w-full text-sm" aria-describedby="images-error">
         <p id="images-error" class="mt-1 hidden text-sm text-red-700"></p>
@@ -147,6 +152,11 @@
       check("category", !category, "Choose a category.");
       check("price", !(price > 0), "Price must be greater than 0.");
       check("stock_qty", stockRaw === "" || !Number.isInteger(stock) || stock < 0, "Stock must be a whole number, 0 or more.");
+      const threshRaw = document.getElementById("low_stock_threshold").value.trim();
+      if (threshRaw !== "") {
+        const thresh = Number(threshRaw);
+        check("low_stock_threshold", !Number.isInteger(thresh) || thresh < 0, "Threshold must be a whole number, 0 or more.");
+      }
       if (!ok) { const bad = form.querySelector('[aria-invalid="true"]'); if (bad) bad.focus(); return; }
 
       const fd = new FormData();
@@ -155,6 +165,9 @@
       fd.append("category_id", category);
       fd.append("price", price.toFixed(2));
       fd.append("stock_qty", String(stock));
+      if (threshRaw !== "") {
+        fd.append("low_stock_threshold", threshRaw);
+      }
       files.forEach((f) => fd.append("images", f));
 
       btn.disabled = true;
