@@ -40,13 +40,13 @@ Run on a laptop with the Flask development server and SQLite. localhost adds a ~
 |-----------|--------|--------|--------|
 | TC-OPS-01 health (`health_monitor.py`) | 99.5% of pings are 200 with database connected | 30 of 30 pings up, uptime 100.00%, 4 to 82 ms | PASS |
 | TC-PERF-01 (100 users, 5 min) | 95th percentile <= 500 ms, 0% errors | 27,335 requests, 91.45 requests/s, average 34.20 ms, median 24 ms, 95th percentile 85 ms, 99th percentile 169.99 ms, maximum 971 ms, 0 errors (0.00%). The login request alone is slower (100 requests, average 866 ms, 95th percentile 938 ms) because bcrypt is slow on purpose; each user logs in once | PASS |
-| TC-PERF-02 (500 users, 5 min) | No crash, no 502/503 errors | 47,319 requests, 156.4 requests/s, average 1,537 ms, maximum 4,220 ms, 16,307 errors (34.46%). No errors up to about 290 active users; errors began between 290 and 416 users and stayed at about 40% per 30 seconds at 500 users. Throughput stopped growing at about 180 requests/s. Error types: 15,645 "Connection refused" to 127.0.0.1:5000 (33.06% of all requests, the server did not accept the connection); 662 "401 Unauthorized" on GET /api/cart (1.40%), caused by 59 logins that could not connect, so those users had no token. No 502 or 503 responses | FAIL |
+| TC-PERF-02 (500 users, 5 min) | No crash, no 502/503 errors | 47,319 requests, 156.4 requests/s, average 1,537 ms, maximum 4,220 ms, 16,307 errors (34.46%). No errors up to about 290 active users; errors began between 290 and 416 users and stayed at about 40% per 30 seconds at 500 users. Throughput stopped growing at about 180 requests/s. Error types: 15,645 connection refused (127.0.0.1:5000), 662 HTTP 401 Unauthorized | FAIL |
 
-Most likely cause (not confirmed): the Flask development server closes every connection after one request and keeps only a short queue of waiting connections. At about 180 requests per second the queue overflowed and Windows refused new connections. JMeter also ran on the same laptop. A production server (gunicorn) with PostgreSQL has not been tested.
+Possible causes (not confirmed): single-process Flask development server, SQLite, and JMeter on the same laptop. A production server (gunicorn) with PostgreSQL has not been tested.
 
 ### B2. Functional and security tests (pytest)
 
-Last full run on main: 255 tests collected, 244 passed, 11 skipped, 0 failed.
+Last full run on main (9 Nov 2026): 266 tests, 251 passed, 11 skipped, 4 expected failures (xfail), 0 failed; flake8 clean.
 
 | Test case | Result | Evidence |
 |-----------|--------|----------|
