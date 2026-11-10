@@ -61,6 +61,29 @@ coverage report -m
 
 ---
 
+## Detailed Branch Coverage Analysis
+
+All 13 decision points (26 branch outcomes) in `gym_membership.py` are fully evaluated:
+
+| # | Function | Decision / Predicate | True Branch | False Branch |
+|---|----------|----------------------|-------------|--------------|
+| 1 | `membership_cost` | `if plan not in PLAN_PRICE:` | Unknown plan raises `ValueError("unknown plan")` | Known plan proceeds |
+| 2 | `membership_cost` | `if age < 14:` | Age < 14 raises `ValueError("too young")` | Age $\ge 14$ proceeds |
+| 3 | `membership_cost` | `if age >= 60:` | Senior 25% discount applied | Age < 60 evaluates student check |
+| 4 | `membership_cost` | `elif is_student:` | Student 10% discount applied | Non-student: full base price |
+| 5 | `membership_cost` | `if with_trainer:` | Adds 2000 trainer fee | Trainer fee bypassed |
+| 6 | `membership_cost` | `if plan == "yearly":` (nested) | Yearly plan receives 500 trainer rebate | Non-yearly plan keeps full 2000 fee |
+| 7 | `can_enter` | `if not plan_active:` | Returns `False` | Proceeds to hour checks |
+| 8a | `can_enter` | `hour < 5` (in compound OR) | Short-circuits to return `False` | Evaluates second operand |
+| 8b | `can_enter` | `hour > 22` (in compound OR) | Returns `False` | Valid hour range [5, 22] proceeds |
+| 9 | `can_enter` | `if is_women_only_slot:` | Evaluates `gender == "F"` (`True` for F, `False` otherwise) | Bypassed, falls through to `return True` |
+| 10 | `bmi_category` | `if height_m <= 0:` | Height $\le 0$ raises `ValueError("invalid height")` | Height > 0 calculates BMI |
+| 11 | `bmi_category` | `if bmi < 18.5:` | Returns `"underweight"` | Proceeds to next check |
+| 12 | `bmi_category` | `elif bmi < 25:` | Returns `"normal"` | Proceeds to next check |
+| 13 | `bmi_category` | `elif bmi < 30:` | Returns `"overweight"` | Falls through to return `"obese"` |
+
+---
+
 ## Terminal Screenshots
 - Code Coverage Terminal Result: `code_coverage_terminal.png`
 - Branch Coverage Terminal Result: `branch_coverage_terminal.png`
