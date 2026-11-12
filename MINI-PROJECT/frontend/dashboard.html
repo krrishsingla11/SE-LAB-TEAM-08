@@ -64,6 +64,21 @@
       <ul id="stock-list" class="mt-3 divide-y divide-stone-300 rounded border border-stone-300 bg-white"></ul>
     </section>
 
+    <section aria-labelledby="products-h" class="mt-10">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <h2 id="products-h" class="font-serif text-xl font-bold text-indigo-900">Your products</h2>
+        <div class="flex items-center gap-2">
+          <label for="products-category" class="text-sm font-medium text-slate-700">Category:</label>
+          <select id="products-category"
+            class="rounded border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-700">
+            <option value="">All categories</option>
+          </select>
+        </div>
+      </div>
+      <p id="products-msg" class="mt-2 text-slate-700" role="status">Loading your products...</p>
+      <ul id="products-list" class="mt-3 divide-y divide-stone-300 rounded border border-stone-300 bg-white"></ul>
+    </section>
+
     <section aria-labelledby="orders-h" class="mt-10">
       <h2 id="orders-h" class="font-serif text-xl font-bold text-indigo-900">Incoming orders</h2>
       <p id="orders-msg" tabindex="-1" class="mt-2 text-slate-700 focus:outline-none" role="status">Loading orders...</p>
@@ -170,6 +185,62 @@
       }
     }
 
+    // ----- all products (with category and stock) -----
+    const sampleProducts = { products: [
+      { product_id: 1, title: "Ceramic Vase", category_id: 1, category: "Pottery", price: 450, stock_quantity: 20, threshold: 5 },
+      { product_id: 2, title: "Silk Scarf", category_id: 2, category: "Textiles", price: 1200, stock_quantity: 1, threshold: 5 },
+      { product_id: 3, title: "Carved Teak Coaster Set", category_id: 3, category: "Woodwork", price: 640, stock_quantity: 0, threshold: 5 },
+      { product_id: 4, title: "Brass Diya Lamp", category_id: 4, category: "Metalwork", price: 720, stock_quantity: 4, threshold: 5 } ] };
+    let allProducts = [];
+
+    function stockBadge(p) {
+      if (p.stock_quantity <= 0) return '<span class="rounded bg-red-100 px-2 py-0.5 text-sm font-medium text-red-800">Out of stock</span>';
+      if (p.stock_quantity <= (p.threshold ?? 5)) return `<span class="rounded bg-amber-100 px-2 py-0.5 text-sm font-medium text-amber-900">Low stock: ${p.stock_quantity} left</span>`;
+      return `<span class="rounded bg-green-100 px-2 py-0.5 text-sm font-medium text-green-900">In stock: ${p.stock_quantity}</span>`;
+    }
+
+    function renderProducts() {
+      const cat = $("products-category").value;
+      const list = allProducts.filter((p) => !cat || String(p.category_id) === cat);
+      $("products-msg").textContent = list.length
+        ? `Showing ${list.length} of ${allProducts.length} products.`
+        : "No products in this category yet.";
+      $("products-list").innerHTML = list.map((p) => `
+        <li class="flex flex-wrap items-center justify-between gap-2 p-3">
+          <div>
+            <a href="product.html?id=${p.product_id}" class="font-medium text-indigo-800 underline">${esc(p.title)}</a>
+            <p class="mt-1 text-sm text-slate-700">
+              <span class="rounded bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-900">${esc(p.category)}</span>
+              <span class="ml-2">${money(p.price)}</span>
+            </p>
+          </div>
+          ${stockBadge(p)}
+        </li>`).join("");
+    }
+
+    async function loadProducts() {
+      try {
+        const d = SAMPLE ? sampleProducts : await api.sellerProducts();
+        allProducts = d.products || [];
+        if (!allProducts.length) {
+          $("products-msg").innerHTML = 'You have no products yet. <a href="artisan-listings.html" class="font-medium text-indigo-800 underline">Create a listing</a>';
+          return;
+        }
+        const seen = new Map();
+        allProducts.forEach((p) => seen.set(String(p.category_id), p.category));
+        [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1])).forEach(([id, name]) => {
+          const o = document.createElement("option");
+          o.value = id;
+          o.textContent = name;
+          $("products-category").appendChild(o);
+        });
+        renderProducts();
+      } catch (err) {
+        $("products-msg").innerHTML = esc(notReady(err) ? "Your product list isn't available on the server yet." : err.message) + (notReady(err) ? hint : "");
+      }
+    }
+    $("products-category").addEventListener("change", renderProducts);
+
     // ----- orders -----
     function orderCard(o) {
       const date = o.created_at ? new Date(/(Z|[+-]\d\d:\d\d)$/.test(o.created_at) ? o.created_at : o.created_at + "Z")
@@ -239,7 +310,7 @@
     }));
 
     if (SAMPLE) $("sample-note").classList.remove("hidden");
-    loadSales(); loadStock(); loadOrders();
+    loadSales(); loadStock(); loadProducts(); loadOrders();
   </script>
 </body>
 </html>

@@ -203,6 +203,7 @@ const api = {
   createProduct: (data) => apiCall("POST", "/products", data),
   // --- Artisan dashboard (SE8-40). Paths from the SRS/STP; response shapes are ASSUMED until the backend merges.
   sellerOrders: () => apiCall("GET", "/seller/orders"),       // {orders: [{order_id, status, created_at, shipping_address, total, items: [{title, quantity, unit_price}]}]}
+  sellerProducts: () => apiCall("GET", "/seller/products"), // {products: [{product_id, title, category_id, category, price, stock_quantity, threshold, in_stock}]}
   sellerDashboard: () => apiCall("GET", "/seller/dashboard"), // {low_stock: [{product_id, title, stock_quantity, threshold}]}
   updateOrderStatus: (id, status) => apiCall("PUT", `/orders/${id}/status`, { status }), // Pending > Processing > Shipped > Delivered
   salesReport: (period = "monthly", startDate = "", endDate = "") => {
