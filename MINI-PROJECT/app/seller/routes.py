@@ -27,3 +27,10 @@ def seller_dashboard():
     user_id = int(get_jwt_identity())
     result = service.get_seller_dashboard(user_id)
     return jsonify(result), 200
+
+
+@bp.get("/seller/products")
+@role_required("artisan")
+def seller_products():
+    user_id = int(get_jwt_identity())
+    return jsonify({"products": service.list_seller_products(user_id)}), 200
