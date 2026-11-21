@@ -1,0 +1,10 @@
+Lab 4: Vibe Coding
+Name: Kishan K Shenoy
+SRN: PES1UG24AM138
+Scenario: 14_2048
+
+GitHub repository (personal fork):
+https://github.com/SETAPESU26/14_2048
+
+LLM chat history:
+Chat transcript documented and included in Chat_History.pdf
