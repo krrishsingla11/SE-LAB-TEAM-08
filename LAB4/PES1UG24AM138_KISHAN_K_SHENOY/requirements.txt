@@ -1,0 +1,4 @@
+# Standard-library-only scenario.
+# No third-party packages are required.
+# Recommended Python version: 3.9+
+pytest>=7.0.0
